@@ -1,0 +1,70 @@
+name: caecomp
+
+x-caecomp-env: &caecomp-env
+  NODE_ENV: production
+  APPWRITE_ENDPOINT: ${APPWRITE_ENDPOINT}
+  NEXT_PUBLIC_APPWRITE_ENDPOINT: ${NEXT_PUBLIC_APPWRITE_ENDPOINT}
+  APPWRITE_PROJECT_ID: ${APPWRITE_PROJECT_ID}
+  APPWRITE_API_KEY: ${APPWRITE_API_KEY}
+  APPWRITE_DATABASE_ID: ${APPWRITE_DATABASE_ID}
+  APPWRITE_STORAGE_BUCKET_ID: ${APPWRITE_STORAGE_BUCKET_ID}
+  NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+  CAECOMP_UPLOAD_SALT: ${CAECOMP_UPLOAD_SALT}
+
+services:
+  caecomp-migrate:
+    image: ${CAECOMP_WEB_IMAGE}
+    command: ["node", "scripts/migrate-appwrite.mjs"]
+    restart: "no"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: [/tmp]
+    environment:
+      <<: *caecomp-env
+      CAECOMP_OWNER_EMAIL: ${CAECOMP_OWNER_EMAIL}
+      CAECOMP_OWNER_NAME: ${CAECOMP_OWNER_NAME}
+    networks: [appwrite_proxy]
+
+  caecomp-web:
+    image: ${CAECOMP_WEB_IMAGE}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /app/.next/cache:rw,noexec,nosuid,size=128m
+    environment: *caecomp-env
+    depends_on:
+      caecomp-migrate: { condition: service_completed_successfully }
+    networks: [appwrite_proxy]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    labels:
+      - traefik.enable=true
+      - traefik.constraint-label-stack=appwrite
+      - traefik.docker.network=appwrite
+      - traefik.http.services.caecomp_web.loadbalancer.server.port=3000
+      - traefik.http.routers.caecomp_web_http.entrypoints=appwrite_web
+      - traefik.http.routers.caecomp_web_http.rule=Host(`${APP_DOMAIN}`) || Host(`www.${APP_DOMAIN}`)
+      - traefik.http.routers.caecomp_web_http.service=caecomp_web
+      - traefik.http.routers.caecomp_web_https.entrypoints=appwrite_websecure
+      - traefik.http.routers.caecomp_web_https.rule=Host(`${APP_DOMAIN}`) || Host(`www.${APP_DOMAIN}`)
+      - traefik.http.routers.caecomp_web_https.service=caecomp_web
+      - traefik.http.routers.caecomp_web_https.tls=true
+      - traefik.http.routers.caecomp_web_https.tls.certresolver=letsencrypt
+
+networks:
+  appwrite_proxy:
+    external: true
+    name: appwrite

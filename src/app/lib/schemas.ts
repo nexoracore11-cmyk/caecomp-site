@@ -1,0 +1,28 @@
+import { z } from "zod";
+import { permissionOptions, type Permission } from "./permissions";
+import { accessLevels } from "./types";
+const permissionKeys=permissionOptions.map(p=>p[0]) as [Permission,...Permission[]];
+const strongPassword=z.string().min(10).max(128).refine((value)=>/[A-Za-z]/.test(value)&&/\d/.test(value),"Use letras e números.");
+export const loginSchema=z.object({email:z.email(),password:z.string().min(8),keepConnected:z.boolean().optional()});
+export const requestSchema=z.object({itemId:z.string().min(1).max(36),kind:z.enum(["product","store","event","opportunity"]),name:z.string().trim().min(3).max(128),whatsapp:z.string().trim().min(8).max(32),email:z.union([z.email(),z.literal("")]).optional(),quantity:z.coerce.number().int().min(1).max(100),details:z.string().trim().max(2000).optional()});
+export const userCreateSchema=z.object({name:z.string().trim().min(3).max(128),email:z.email(),password:strongPassword,accessLevel:z.enum(accessLevels).default("member"),permissions:z.array(z.enum(permissionKeys)).max(permissionKeys.length),active:z.boolean().default(true)});
+export const userUpdateSchema=z.object({name:z.string().trim().min(3).max(128).optional(),email:z.email().optional(),password:strongPassword.optional(),accessLevel:z.enum(accessLevels).optional(),permissions:z.array(z.enum(permissionKeys)).optional(),active:z.boolean().optional()});
+export const profileSchema=z.object({name:z.string().trim().min(3).max(128).optional(),email:z.email().optional(),currentPassword:z.string().min(8).optional(),newPassword:strongPassword.optional()});
+export const pretinhaSubmissionSchema=z.object({title:z.string().trim().max(120).optional(),description:z.string().trim().max(800).optional(),website:z.string().max(0).optional()});
+export const pretinhaModerationSchema=z.object({status:z.enum(["pending","approved","rejected"]),selectedRank:z.coerce.number().int().min(1).max(30).optional()});
+const optionalHttpUrl=z.union([z.literal(""),z.string().trim().max(2048).refine((value)=>{
+  if(value.startsWith("/")&&!value.startsWith("//"))return true;
+  try{return ["http:","https:"].includes(new URL(value).protocol)}catch{return false}
+})]).optional();
+export const directorCreateSchema=z.object({name:z.string().trim().min(2).max(128),role:z.string().trim().min(2).max(128),department:z.string().trim().min(2).max(128),photoUrl:optionalHttpUrl,whatsapp:z.string().trim().max(32).optional(),linkedin:optionalHttpUrl,lattes:optionalHttpUrl,instagram:optionalHttpUrl,sortOrder:z.coerce.number().int().min(0).max(10000).default(0)});
+export const directorUpdateSchema=directorCreateSchema.partial().extend({active:z.boolean().optional()}).refine((value)=>Object.keys(value).length>0);
+export const requestUpdateSchema=z.object({status:z.enum(["new","contacted","completed","cancelled"]),internalNotes:z.string().trim().max(4000).optional()});
+const optionalNumber=z.preprocess((value)=>value===""?null:value,z.union([z.coerce.number().finite().nonnegative(),z.null()]).optional());
+const optionalInteger=z.preprocess((value)=>value===""?null:value,z.union([z.coerce.number().int().min(0).max(1000000),z.null()]).optional());
+const contentModule=z.enum(["news","events","ca_products","stores","documents","gallery","company_opportunities","academic_opportunities"]);
+const contentStatus=z.enum(["draft","pending","published","rejected","archived"]);
+const optionalDateTime=z.union([z.literal(""),z.string().max(40).refine((value)=>!Number.isNaN(Date.parse(value)))]).optional();
+export const contentCreateSchema=z.object({module:contentModule,title:z.string().trim().min(2).max(255),slug:z.string().trim().max(240).optional(),summary:z.string().trim().min(2).max(4000),content:z.string().trim().max(30000).optional(),imageUrl:optionalHttpUrl,documentUrl:optionalHttpUrl,category:z.string().trim().max(100).optional(),status:contentStatus.default("draft"),startAt:optionalDateTime,endAt:optionalDateTime,location:z.string().trim().max(255).optional(),price:optionalNumber,stockMode:z.enum(["limited","unlimited"]).optional(),stockQty:optionalInteger,capacityMode:z.enum(["limited","unlimited"]).optional(),capacityQty:optionalInteger,ctaLabel:z.string().trim().max(100).optional(),ctaUrl:optionalHttpUrl,ownerName:z.string().trim().max(128).optional(),whatsapp:z.string().trim().max(32).optional(),sortOrder:z.coerce.number().int().min(0).max(100000).default(0)}).strict();
+export const contentUpdateSchema=contentCreateSchema.omit({module:true,slug:true}).partial().refine((value)=>Object.keys(value).length>0);
+const sectionKey=z.enum(["news","events","ca_products","stores","documents","gallery","pretinha","company_opportunities","academic_opportunities","directors","instagram","about","history"]);
+export const settingsPatchSchema=z.object({sections:z.record(sectionKey,z.boolean()).optional(),heroTitle:z.string().trim().min(3).max(180).optional(),heroText:z.string().trim().min(3).max(1200).optional(),aboutTitle:z.string().trim().min(3).max(180).optional(),aboutText:z.string().trim().min(3).max(5000).optional(),historyText:z.string().trim().min(3).max(10000).optional(),instagramPosts:z.array(z.string().trim().max(2048).refine((value)=>/^https:\/\/(www\.)?instagram\.com\/(p|reel)\//i.test(value))).max(3).optional()}).strict().refine((value)=>Object.keys(value).length>0);

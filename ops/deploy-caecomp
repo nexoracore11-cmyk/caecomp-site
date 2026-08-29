@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+ARCHIVE="${1:-}"; REVISION="${2:-unknown}"
+TARGET="/opt/caecomp"; BACKUP_ROOT="/opt/caecomp-backups"; RELEASE_ROOT="/opt/caecomp-releases"
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"; BACKUP="$BACKUP_ROOT/$STAMP"; RELEASE="$RELEASE_ROOT/$STAMP"
+fail(){ printf 'DEPLOY_ERROR: %s\n' "$1" >&2; exit 1; }
+[[ "$ARCHIVE" == /home/caecompdeploy/*.tar.gz ]] || fail "release fora do diretório autorizado"
+[[ -f "$ARCHIVE" && ! -L "$ARCHIVE" ]] || fail "release inválido"
+[[ -f "$TARGET/.env" ]] || fail "configuração de produção ausente"
+mkdir -p "$BACKUP_ROOT" "$RELEASE"
+if tar -tzf "$ARCHIVE" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then fail "release contém caminho inseguro"; fi
+tar -xzf "$ARCHIVE" -C "$RELEASE"
+for required in Dockerfile docker-compose.yml package.json package-lock.json; do [[ -f "$RELEASE/$required" ]] || fail "arquivo ausente: $required"; done
+cp -p "$TARGET/.env" "$RELEASE/.env"; chmod 600 "$RELEASE/.env"
+cd "$RELEASE"; docker compose config --quiet; docker compose build caecomp-web; docker compose run --rm --no-deps caecomp-migrate
+mv "$TARGET" "$BACKUP"; mv "$RELEASE" "$TARGET"
+rollback(){ local failed="$RELEASE_ROOT/failed-$STAMP"; printf 'DEPLOY_ROLLBACK: %s\n' "$BACKUP" >&2; mv "$TARGET" "$failed" || true; mv "$BACKUP" "$TARGET" || true; cd "$TARGET" || return; docker compose up -d --build caecomp-web || true; }
+trap rollback ERR
+cd "$TARGET"; docker compose up -d --no-build
+for attempt in $(seq 1 30); do if curl --fail --silent --show-error --output /dev/null --resolve "${APP_DOMAIN:-caecomp.com.br}:443:127.0.0.1" "https://${APP_DOMAIN:-caecomp.com.br}/api/health"; then trap - ERR; printf 'DEPLOY_OK revision=%s backup=%s\n' "$REVISION" "$BACKUP"; exit 0; fi; sleep 4; done
+fail "aplicação não respondeu após o deploy"

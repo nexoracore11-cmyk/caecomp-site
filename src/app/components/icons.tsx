@@ -1,0 +1,31 @@
+import {
+  ArrowUpRight,
+  CalendarDays,
+  FileText,
+  GraduationCap,
+  Camera,
+  Mail,
+  MapPin,
+  Menu,
+  Package,
+  Search,
+  ShoppingBag,
+  Users,
+  X,
+} from "lucide-react";
+const Instagram = Camera;
+export {
+  ArrowUpRight,
+  CalendarDays,
+  FileText,
+  GraduationCap,
+  Instagram,
+  Mail,
+  MapPin,
+  Menu,
+  Package,
+  Search,
+  ShoppingBag,
+  Users,
+  X,
+};
