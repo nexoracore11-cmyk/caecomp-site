@@ -24,6 +24,10 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/scripts ./scripts
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/node-appwrite ./node_modules/node-appwrite
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/json-bigint ./node_modules/json-bigint
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/bignumber.js ./node_modules/bignumber.js
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/undici ./node_modules/undici
 USER nextjs
 EXPOSE 3000
 CMD ["node","server.js"]
