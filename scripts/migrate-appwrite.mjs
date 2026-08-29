@@ -234,6 +234,7 @@ for (const def of definitions) {
   const existing = await tables.listColumns({
     databaseId,
     tableId: def.id,
+    queries: [Query.limit(500)],
     total: false,
   });
   const keys = new Set(existing.columns.map((c) => c.key));
@@ -243,6 +244,7 @@ for (const def of definitions) {
     const current = await tables.listColumns({
       databaseId,
       tableId: def.id,
+      queries: [Query.limit(500)],
       total: false,
     });
     if (
