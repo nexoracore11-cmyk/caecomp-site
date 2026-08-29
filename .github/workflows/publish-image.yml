@@ -46,7 +46,3 @@ jobs:
             NEXT_PUBLIC_APPWRITE_ENDPOINT=https://api.radiovigilantesgo.com.br/v1
             NEXT_PUBLIC_APPWRITE_PROJECT_ID=caecomp
             NEXT_PUBLIC_SITE_URL=https://caecomp.com.br
-      - name: Allow anonymous production pulls
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh api --method PATCH /user/packages/container/caecomp-site -f visibility=public
