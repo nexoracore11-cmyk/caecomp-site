@@ -29,6 +29,13 @@ services:
 
   caecomp-web:
     image: ${CAECOMP_WEB_IMAGE}
+    build:
+      context: https://github.com/nexoracore11-cmyk/caecomp-site.git#master
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APPWRITE_ENDPOINT: ${NEXT_PUBLIC_APPWRITE_ENDPOINT}
+        NEXT_PUBLIC_APPWRITE_PROJECT_ID: ${APPWRITE_PROJECT_ID}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
     restart: unless-stopped
     init: true
     read_only: true
