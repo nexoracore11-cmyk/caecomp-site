@@ -13,7 +13,8 @@ x-caecomp-env: &caecomp-env
 
 services:
   caecomp-migrate:
-    image: ${CAECOMP_WEB_IMAGE}
+    image: ghcr.io/nexoracore11-cmyk/caecomp-site:latest
+    pull_policy: never
     command: ["node", "scripts/migrate-appwrite.mjs"]
     restart: "no"
     init: true
@@ -28,14 +29,8 @@ services:
     networks: [appwrite_proxy]
 
   caecomp-web:
-    image: ${CAECOMP_WEB_IMAGE}
-    build:
-      context: https://github.com/nexoracore11-cmyk/caecomp-site.git#master
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_APPWRITE_ENDPOINT: ${NEXT_PUBLIC_APPWRITE_ENDPOINT}
-        NEXT_PUBLIC_APPWRITE_PROJECT_ID: ${APPWRITE_PROJECT_ID}
-        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+    image: ghcr.io/nexoracore11-cmyk/caecomp-site:latest
+    pull_policy: never
     restart: unless-stopped
     init: true
     read_only: true

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 concurrency:
@@ -46,3 +46,14 @@ jobs:
             NEXT_PUBLIC_APPWRITE_ENDPOINT=https://api.radiovigilantesgo.com.br/v1
             NEXT_PUBLIC_APPWRITE_PROJECT_ID=caecomp
             NEXT_PUBLIC_SITE_URL=https://caecomp.com.br
+      - name: Publish deployable image archive
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker pull ghcr.io/nexoracore11-cmyk/caecomp-site:latest
+          docker save ghcr.io/nexoracore11-cmyk/caecomp-site:latest | gzip -9 > caecomp-portal.tar.gz
+          if gh release view deployment-image >/dev/null 2>&1; then
+            gh release upload deployment-image caecomp-portal.tar.gz --clobber
+          else
+            gh release create deployment-image caecomp-portal.tar.gz --title "CAECOMP production image" --notes "Imagem compilada automaticamente para implantação na VPS."
+          fi
