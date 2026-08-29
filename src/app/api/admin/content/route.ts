@@ -5,7 +5,7 @@ import { currentAdmin, can, isMaster } from "@/app/lib/auth";
 import { tables } from "@/app/lib/appwrite";
 import type { Permission } from "@/app/lib/permissions";
 import { rejectCrossOrigin } from "@/app/lib/security";
-import { contentCreateSchema } from "@/app/lib/schemas";
+import { contentCreateSchema, eventMetadataSchema } from "@/app/lib/schemas";
 
 const modulePermission: Record<string, Permission> = { news: "news", events: "events", ca_products: "products", stores: "stores", documents: "documents", gallery: "gallery", company_opportunities: "opportunities", academic_opportunities: "academic" };
 function allowed(admin: NonNullable<Awaited<ReturnType<typeof currentAdmin>>>, module: string) {
@@ -22,9 +22,17 @@ export async function POST(request: Request) {
   const parsed = contentCreateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Revise os campos, números, datas e links do conteúdo." }, { status: 400 });
   const body = parsed.data;
+  if(body.module==="events"&&body.metadata){try{if(!eventMetadataSchema.safeParse(JSON.parse(body.metadata)).success)throw new Error()}catch{return NextResponse.json({error:"Configuração de evento inválida."},{status:400})}}
   if (!allowed(admin, body.module)) return NextResponse.json({ error: "Sem permissão para este módulo." }, { status: 403 });
   const isStore = body.module === "stores";
-  if (isStore && (!body.ownerName || !body.whatsapp || body.whatsapp.length < 8)) return NextResponse.json({ error: "Informe o nome e o WhatsApp da vendinha." }, { status: 400 });
+  let storeOwnerUserId:string|null=null;
+  if(isStore){
+    if(!body.storeId)return NextResponse.json({error:"Selecione a vendinha deste produto."},{status:400});
+    const store=await tables().getRow({databaseId:config.databaseId,tableId:"store_profiles",rowId:body.storeId}).catch(()=>null);
+    if(!store)return NextResponse.json({error:"Vendinha não encontrada."},{status:404});
+    if(!isMaster(admin)&&store.ownerUserId!==admin.userId)return NextResponse.json({error:"Você só pode cadastrar produtos na sua vendinha."},{status:403});
+    storeOwnerUserId=String(store.ownerUserId);
+  }
   const storeApprover = canApproveStores(admin);
   const requestedStatus = String(body.status ?? "draft");
   const status = isStore && !storeApprover ? "pending" : (["draft", "pending", "published", "rejected", "archived"].includes(requestedStatus) ? requestedStatus : "draft");
@@ -38,6 +46,9 @@ export async function POST(request: Request) {
     ownerUserId: isStore ? admin.userId : null,
     reviewedBy: isStore && status === "published" ? admin.userId : null,
     reviewedAt: isStore && status === "published" ? new Date().toISOString() : null,
+    storeId: body.storeId || null,
+    metadata: body.metadata || null,
+    ...(isStore?{ownerUserId:storeOwnerUserId,ownerName:null,whatsapp:null}:{}),
   };
   const row = await tables().createRow({ databaseId: config.databaseId, tableId: "content_items", rowId: ID.unique(), data });
   return NextResponse.json({ item: row, message: isStore && status === "pending" ? "Produto enviado para aprovação." : "Conteúdo cadastrado." }, { status: 201 });

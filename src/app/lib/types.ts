@@ -31,6 +31,35 @@ export type ContentItem = {
   ownerUserId?: string;
   reviewedBy?: string;
   reviewedAt?: string;
+  storeId?: string;
+  metadata?: string;
+};
+
+export type StoreProfile = {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  whatsapp?: string;
+  instagram?: string;
+  logoUrl?: string;
+  coverUrl?: string;
+  ownerUserId: string;
+  active: boolean;
+  approved: boolean;
+};
+
+export type PhotoCampaign = {
+  id: string;
+  title: string;
+  slug: string;
+  summary: string;
+  description?: string;
+  status: "draft" | "open" | "closed" | "archived";
+  coverUrl?: string;
+  selectionLimit: number;
+  startsAt?: string;
+  endsAt?: string;
 };
 
 export type Director = {
@@ -59,6 +88,8 @@ export type PublicData = {
   settings: SiteSettings;
   content: ContentItem[];
   directors: Director[];
+  stores: StoreProfile[];
+  photoCampaigns: PhotoCampaign[];
 };
 
 export const accessLevels = ["member", "master", "presidency", "supreme"] as const;
@@ -72,4 +103,5 @@ export type PretinhaPhoto = {
   status: "pending" | "approved" | "rejected";
   selectedRank?: number;
   submittedAt?: string;
+  campaignId?: string;
 };

@@ -33,7 +33,7 @@ export async function POST(request: Request) {
         databaseId: config.databaseId,
         tableId: "administrators",
         rowId: ID.unique(),
-        data: { userId: user.$id, email: user.email, name: user.name, active: parsed.data.active, isOwner: false, accessLevel: parsed.data.accessLevel, permissions: parsed.data.permissions, createdBy: admin.userId },
+        data: { userId: user.$id, email: user.email, name: user.name, active: parsed.data.active, isOwner: false, accessLevel: parsed.data.accessLevel, permissions: parsed.data.permissions, createdBy: admin.userId, mustChangePassword:true },
       });
       return NextResponse.json({ user: row }, { status: 201 });
     } catch (error) {

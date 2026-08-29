@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export function PretinhaSubmissionForm() {
+export function PretinhaSubmissionForm({campaignId,campaignTitle}:{campaignId:string;campaignTitle:string}) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -13,7 +13,7 @@ export function PretinhaSubmissionForm() {
     const result = await response.json().catch(() => ({}));
     setSending(false);
     if (response.ok) {
-      setMessage("Foto enviada! Agora ela aguarda a seleção da equipe CAECOMP.");
+      setMessage("Foto enviada. Agora ela aguarda a seleção da equipe CAECOMP.");
       const form = document.getElementById("pretinha-form") as HTMLFormElement | null;
       form?.reset();
     } else {
@@ -24,10 +24,11 @@ export function PretinhaSubmissionForm() {
   return (
     <form id="pretinha-form" action={submit} className="pretinha-form">
       <div className="pretinha-field full">
-        <label htmlFor="pretinha-photo">Foto da Pretinha *</label>
+        <label htmlFor="pretinha-photo">Foto para {campaignTitle} *</label>
         <input id="pretinha-photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required />
         <small>JPG, PNG ou WebP, com até 10 MB.</small>
       </div>
+      <input type="hidden" name="campaignId" value={campaignId}/>
       <div className="pretinha-field">
         <label htmlFor="pretinha-title">Título da foto <span>opcional</span></label>
         <input id="pretinha-title" name="title" maxLength={120} placeholder="Ex.: A guardiã da quadra" />

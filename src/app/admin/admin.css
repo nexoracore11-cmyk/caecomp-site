@@ -8,3 +8,5 @@
 @media(max-width:600px){.pretinha-admin-grid{grid-template-columns:1fr}}
 .approval-notice{border:1px solid #edb9d7;background:#fff5fb;padding:13px;display:grid;gap:5px}.approval-notice strong{font-size:.78rem;color:#8b1257}.approval-notice span{font-size:.7rem;color:#716b75;line-height:1.45}
 .form-heading{grid-column:1/-1;display:grid;gap:5px}.form-heading span{color:#716b75;font-size:.72rem;line-height:1.5}
+.admin-form .full{grid-column:1/-1}.campaign-admin-bar{background:#fff;border:1px solid #e7dfe8;padding:18px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:end;gap:18px}.campaign-admin-bar label{display:grid;gap:6px;font-size:.72rem;font-weight:750}.campaign-admin-bar select{min-width:260px;border:1px solid #ddd2df;padding:10px;background:#fff}.campaign-admin-bar>div{display:flex;gap:8px}.campaign-admin-bar button{border:1px solid #dacedd;background:#fff;padding:9px 12px;border-radius:5px;cursor:pointer}.admin-title.row>div:last-child{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:700px){.campaign-admin-bar{align-items:stretch;flex-direction:column}.campaign-admin-bar select{min-width:0;width:100%}}

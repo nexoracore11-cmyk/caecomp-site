@@ -64,7 +64,7 @@ try {
   });
   await Promise.all([command("Page.enable"), command("Runtime.enable"), command("Log.enable")]);
 
-  const routes = ["/", "/noticias", "/eventos", "/produtos", "/vendinhas", "/oportunidades", "/documentos", "/galeria", "/pretinha", "/sobre", "/admin/login"];
+  const routes = ["/", "/noticias", "/eventos", "/eventos/jornada-stack", "/produtos", "/vendinhas", "/oportunidades", "/documentos", "/documentos/matriz-curricular-pdf", "/galeria", "/olhares", "/olhares/pretinha", "/pretinha", "/sobre", "/admin/login"];
   const results = [];
   for (const viewport of [{ name: "desktop", width: 1440, height: 1000, mobile: false }, { name: "mobile", width: 390, height: 844, mobile: true }]) {
     await command("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 1, mobile: viewport.mobile });
@@ -77,6 +77,8 @@ try {
       const page = JSON.parse(evaluated.result.value);
       results.push({ viewport: viewport.name, route, ...page, overflow: page.scrollWidth > page.clientWidth + 1 });
       if (route === "/") {
+        const theme=await command("Runtime.evaluate",{expression:`(()=>{const before=document.documentElement.dataset.theme;document.querySelector('.theme-toggle')?.click();return before!==document.documentElement.dataset.theme})()`,returnByValue:true});
+        if(theme.result.value!==true)consoleErrors.push("Alternância de tema falhou");
         const capture = await command("Page.captureScreenshot", { format: "png", fromSurface: true, captureBeyondViewport: false });
         await writeFile(join(outputDir, `home-${viewport.name}.png`), Buffer.from(capture.data, "base64"));
       }

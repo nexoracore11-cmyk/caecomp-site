@@ -1,16 +1,7 @@
 import type { Metadata } from "next";
-import { ListingPage } from "../components/listing-page";
 import { getPublicData, requirePublicSection } from "../lib/public-data";
-export const metadata: Metadata = { title: "Documentos" };
-export default async function Page() {
-  const data = await getPublicData();
-  requirePublicSection(data,"documents");
-  return (
-    <ListingPage
-      kicker="Transparência"
-      title="Documentos"
-      description="Estatuto, atas, editais, prestações de contas, guias acadêmicos e documentos de interesse da comunidade."
-      items={data.content.filter((i) => i.module === "documents")}
-    />
-  );
-}
+import { DocumentLibrary, type DocumentEntry } from "./document-library";
+export const metadata:Metadata={title:"Documentos e jornal"};
+const useful=["Calendário Acadêmico 2023.pdf","Fluxo Sugerido de Integralização.pdf","Fluxo Sugerido.pdf","Matriz Curricular.pdf","Portaria No 5011 de 28 de Agosto de 2025 - PFC.pdf","PPC EngComp.pdf","Resolução PFC - 2024.pdf","RGCG - Regulamento Geral dos Cursos de Graduação.pdf","Tutorial Matricula.pdf"];
+const slugify=(v:string)=>v.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+export default async function Page(){const data=await getPublicData();requirePublicSection(data,"documents");const fixed:DocumentEntry[]=useful.map(title=>({title,type:"PDF",category:"Arquivo útil",url:`/documents/${encodeURIComponent(title)}`,slug:slugify(title)}));const managed=data.content.filter(i=>i.module==="documents"&&i.documentUrl).map(i=>({title:i.title,type:(i.documentUrl?.split(".").pop()||"arquivo").split("?")[0].toUpperCase(),category:i.category||"Documento",url:i.documentUrl!,slug:i.slug,summary:i.summary}));return <><section className="page-hero"><span className="kicker light">Biblioteca CAECOMP</span><h1>Documentos e jornal</h1><p>Arquivos úteis, documentos institucionais e edições do jornal do CAECOMP para ler no navegador ou baixar.</p></section><section className="page-content"><DocumentLibrary documents={[...managed,...fixed]}/></section></>}

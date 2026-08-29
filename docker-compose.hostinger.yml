@@ -26,6 +26,7 @@ services:
       <<: *caecomp-env
       CAECOMP_OWNER_EMAIL: ${CAECOMP_OWNER_EMAIL}
       CAECOMP_OWNER_NAME: ${CAECOMP_OWNER_NAME}
+      CAECOMP_PRESIDENCY_PASSWORD: ${CAECOMP_PRESIDENCY_PASSWORD}
     networks: [appwrite_proxy]
 
   caecomp-web:

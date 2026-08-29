@@ -62,6 +62,7 @@ const definitions = [
       s("accessLevel", false, 32),
       s("permissions", false, 64, true),
       s("createdBy", false, 36),
+      b("mustChangePassword", false),
     ],
     indexes: [
       { key: "user_unique", type: "unique", columns: ["userId"] },
@@ -98,6 +99,8 @@ const definitions = [
       s("reviewedBy", false, 36),
       d("reviewedAt"),
       n("sortOrder"),
+      s("storeId", false, 36),
+      t("metadata"),
     ],
     indexes: [
       { key: "slug_unique", type: "unique", columns: ["slug"] },
@@ -161,13 +164,26 @@ const definitions = [
       d("reviewedAt"),
       s("reviewedBy", false, 36),
       s("submissionKey", true, 64),
+      s("campaignId", false, 36),
     ],
     indexes: [
       { key: "status_rank", type: "key", columns: ["status", "selectedRank"] },
       { key: "submission_time", type: "key", columns: ["submissionKey", "submittedAt"], orders: ["ASC", "DESC"] },
       { key: "submitted_at", type: "key", columns: ["submittedAt"], orders: ["DESC"] },
-      { key: "rank_unique", type: "unique", columns: ["selectedRank"] },
+      { key: "campaign_rank_unique", type: "unique", columns: ["campaignId", "selectedRank"] },
     ],
+  },
+  {
+    id: "store_profiles",
+    name: "Vendinhas",
+    columns: [s("name",true,128),s("slug",true,180),t("description"),s("whatsapp",false,32),s("instagram",false,2048),s("logoUrl",false,2048),s("coverUrl",false,2048),s("ownerUserId",true,36),b("active",true),b("approved",true)],
+    indexes: [{key:"slug_unique",type:"unique",columns:["slug"]},{key:"owner_idx",type:"key",columns:["ownerUserId"]},{key:"public_idx",type:"key",columns:["active","approved"]}],
+  },
+  {
+    id: "photo_campaigns",
+    name: "Olhares CAECOMP",
+    columns: [s("title",true,160),s("slug",true,180),t("summary",true),t("description"),s("status",true,32),s("coverUrl",false,2048),n("selectionLimit",true),d("startsAt"),d("endsAt"),s("createdBy",true,36)],
+    indexes: [{key:"slug_unique",type:"unique",columns:["slug"]},{key:"status_idx",type:"key",columns:["status"]}],
   },
   {
     id: "site_settings",
@@ -242,6 +258,10 @@ for (const def of definitions) {
     tableId: def.id,
     total: false,
   });
+  if(def.id==="pretinha_photos"&&indexes.indexes.some((index)=>index.key==="rank_unique")){
+    await tables.deleteIndex({databaseId,tableId:def.id,key:"rank_unique"});
+    await sleep(1000);
+  }
   const indexKeys = new Set(indexes.indexes.map((i) => i.key));
   for (const index of def.indexes)
     if (!indexKeys.has(index.key))
@@ -328,6 +348,7 @@ if (!ownerRows.rows.length)
       permissions: ["site_manage", "users_manage"],
       accessLevel: "supreme",
       createdBy: owner.$id,
+      mustChangePassword: false,
     },
   });
 const settings = {
@@ -353,6 +374,8 @@ const settings = {
     instagram: true,
     about: true,
     history: true,
+    photo_initiatives: true,
+    journal: true,
   },
   instagramPosts: [
     "https://www.instagram.com/caecompufg/",
@@ -375,12 +398,13 @@ if (!settingRows.rows.length)
   });
 else {
   const currentSettings = JSON.parse(String(settingRows.rows[0].value));
-  if (currentSettings.sections?.pretinha === undefined)
+  const missingSections={...(currentSettings.sections?.pretinha===undefined?{pretinha:true}:{}),...(currentSettings.sections?.photo_initiatives===undefined?{photo_initiatives:true}:{}),...(currentSettings.sections?.journal===undefined?{journal:true}:{})};
+  if (Object.keys(missingSections).length)
     await tables.updateRow({
       databaseId,
       tableId: "site_settings",
       rowId: settingRows.rows[0].$id,
-      data: { value: JSON.stringify({ ...currentSettings, sections: { ...currentSettings.sections, pretinha: true } }) },
+      data: { value: JSON.stringify({ ...currentSettings, sections: { ...currentSettings.sections, ...missingSections } }) },
     });
 }
 
@@ -389,6 +413,22 @@ for (const row of administratorRows.rows) {
   const inferredLevel = row.isOwner ? "supreme" : (Array.isArray(row.permissions) && row.permissions.includes("site_manage") ? "master" : "member");
   if (row.accessLevel !== inferredLevel && (!row.accessLevel || row.isOwner))
     await tables.updateRow({ databaseId, tableId: "administrators", rowId: row.$id, data: { accessLevel: inferredLevel } });
+}
+
+const campaignRows = await tables.listRows({databaseId,tableId:"photo_campaigns",queries:[Query.equal("slug",["pretinha"]),Query.limit(1)],total:false});
+let pretinhaCampaign = campaignRows.rows[0];
+if(!pretinhaCampaign) pretinhaCampaign = await tables.createRow({databaseId,tableId:"photo_campaigns",rowId:ID.unique(),data:{title:"Pretinha",slug:"pretinha",summary:"Os melhores registros da Pretinha, a cachorra adotada pela comunidade da EMC.",description:"Envie seu melhor registro da Pretinha. A equipe do CAECOMP selecionará até 30 fotos para a galeria final.",status:"open",coverUrl:"/caecomp-logo-official.jpg",selectionLimit:30,createdBy:owner.$id}});
+const legacyPhotos = await tables.listRows({databaseId,tableId:"pretinha_photos",queries:[Query.limit(500)],total:false});
+for(const photo of legacyPhotos.rows) if(!photo.campaignId) await tables.updateRow({databaseId,tableId:"pretinha_photos",rowId:photo.$id,data:{campaignId:pretinhaCampaign.$id}});
+
+const workshopRows=await tables.listRows({databaseId,tableId:"content_items",queries:[Query.equal("slug",["workshop-github-2026"]),Query.limit(1)],total:false});
+if(!workshopRows.rows.length)await tables.createRow({databaseId,tableId:"content_items",rowId:ID.unique(),data:{module:"events",title:"Workshop GitHub",slug:"workshop-github-2026",summary:"Uma manhã de aplicação prática de conceitos de Git e GitHub com Gustavo Ferreira.",content:"Aprenda na prática conceitos de Git e GitHub com Gustavo Ferreira.\nO palestrante é especialista em Engenharia de Dados, trabalha com Python, MySQL, AWS e ETL, também atua com MLOps, Django, FastAPI e projetos no CEIA.\nHaverá coffee break após o evento. As vagas são limitadas.",imageUrl:"/event-media/workshop-github-1.webp",category:"Workshop",status:"published",startAt:"2026-09-03T09:00:00-03:00",endAt:"2026-09-03T12:00:00-03:00",location:"Auditório Professor Biolkino Pereira — EMC/UFG",price:0,capacityMode:"limited",ctaLabel:"Fazer inscrição",ctaUrl:"https://docs.google.com/forms/d/e/1FAIpQLSfPa3kIHE6PMDZ4kBE8Rl7k3M4C2l-kgEhJsHTJoXa0YUqXVA/viewform",sortOrder:0,metadata:JSON.stringify({registrationStatus:"open",changeNotice:"",isFree:true,lots:[{name:"Inscrição geral",price:0,status:"open"}],media:["/event-media/workshop-github-1.webp","/event-media/workshop-github-2.webp"],postEventMedia:[],registrationUrl:"https://docs.google.com/forms/d/e/1FAIpQLSfPa3kIHE6PMDZ4kBE8Rl7k3M4C2l-kgEhJsHTJoXa0YUqXVA/viewform",sourceUrl:"https://www.instagram.com/p/DceRLWmm4EV/"})}});
+
+if(process.env.CAECOMP_PRESIDENCY_PASSWORD){
+ const presidencyFound=await users.list({queries:[Query.equal("email",["cawemufg@gmail.com"])],total:false});
+ const presidency=presidencyFound.users[0]??await users.create({userId:ID.unique(),email:"cawemufg@gmail.com",password:process.env.CAECOMP_PRESIDENCY_PASSWORD,name:"Presidência CAECOMP"});
+ const presidencyRows=await tables.listRows({databaseId,tableId:"administrators",queries:[Query.equal("userId",[presidency.$id]),Query.limit(1)],total:false});
+ if(!presidencyRows.rows.length)await tables.createRow({databaseId,tableId:"administrators",rowId:ID.unique(),data:{userId:presidency.$id,email:presidency.email,name:presidency.name,active:true,isOwner:false,accessLevel:"presidency",permissions:["site_manage","users_manage","presidency"],createdBy:owner.$id,mustChangePassword:false}});
 }
 console.log(
   JSON.stringify({

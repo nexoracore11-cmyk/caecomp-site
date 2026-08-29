@@ -11,7 +11,9 @@ export async function PATCH(request: Request) {
   const admin = await currentAdmin();
   const secret = (await cookies()).get(sessionCookie)?.value;
   if (!admin || !secret) return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
-  const parsed = profileSchema.safeParse(await request.json().catch(() => null));
+  const raw=await request.json().catch(()=>null);
+  const cleaned=raw&&typeof raw==="object"?Object.fromEntries(Object.entries(raw).filter(([,value])=>value!==""&&value!=null)):raw;
+  const parsed = profileSchema.safeParse(cleaned);
   if (!parsed.success) return NextResponse.json({ error: "Confira os dados." }, { status: 400 });
   try {
     const account = sessionAccount(secret);
@@ -26,7 +28,7 @@ export async function PATCH(request: Request) {
       if (!currentPassword) return NextResponse.json({ error: "Informe a senha atual." }, { status: 400 });
       await account.updatePassword({ password: newPassword, oldPassword: currentPassword });
     }
-    await tables().updateRow({ databaseId: config.databaseId, tableId: "administrators", rowId: admin.$id, data: { ...(name ? { name } : {}), ...(email ? { email } : {}) } });
+    await tables().updateRow({ databaseId: config.databaseId, tableId: "administrators", rowId: admin.$id, data: { ...(name ? { name } : {}), ...(email ? { email } : {}), ...(newPassword?{mustChangePassword:false}:{}) } });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Não foi possível atualizar. Confira a senha atual." }, { status: 400 });

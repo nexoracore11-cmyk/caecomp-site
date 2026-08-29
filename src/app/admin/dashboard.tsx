@@ -11,6 +11,7 @@ type Admin = {
   isOwner: boolean;
   accessLevel: "member" | "master" | "presidency" | "supreme";
   permissions: string[];
+  mustChangePassword: boolean;
 };
 type Bootstrap = {
   admin: Admin;
@@ -19,6 +20,8 @@ type Bootstrap = {
   users: Row[];
   directors: Row[];
   pretinha: Row[];
+  stores: Row[];
+  campaigns: Row[];
   settings: Record<string, unknown> | null;
 };
 const modules = [
@@ -39,6 +42,8 @@ const labels: Record<string, string> = {
   documents: "Documentos",
   gallery: "Galeria",
   pretinha: "Pretinha",
+  photo_initiatives: "Olhares CAECOMP",
+  journal: "Jornal CAECOMP",
   company_opportunities: "Seleções de empresas",
   academic_opportunities: "Oportunidades acadêmicas",
 };
@@ -59,12 +64,12 @@ export function Dashboard() {
   const [message, setMessage] = useState("");
   async function load() {
     const r = await fetch("/api/admin/bootstrap");
-    if (r.ok) setData(await r.json());
+    if (r.ok) { const next=await r.json(); setData(next); if(next.admin.mustChangePassword)setTab("profile"); }
   }
   useEffect(() => {
     let cancelled = false;
     fetch("/api/admin/bootstrap").then(async (response) => {
-      if (response.ok && !cancelled) setData(await response.json());
+      if (response.ok && !cancelled) { const next=await response.json(); setData(next); if(next.admin.mustChangePassword)setTab("profile"); }
     });
     return () => {
       cancelled = true;
@@ -95,12 +100,14 @@ export function Dashboard() {
   const isMaster = ["master", "presidency", "supreme"].includes(data.admin.accessLevel);
   const canUsers = isMaster || data.admin.permissions.includes("users_manage");
   const hasAny=(permissions:string[])=>isMaster||data.admin.permissions.includes("site_manage")||permissions.some((permission)=>data.admin.permissions.includes(permission));
-  const visibleTabs=new Set(["overview","profile"]);
-  if(hasAny(["news","events","products","stores","documents","gallery","opportunities","academic"]))visibleTabs.add("content");
-  if(hasAny(["presidency","secretary"]))visibleTabs.add("directors");
-  if(hasAny(["requests","products","stores","events","opportunities"]))visibleTabs.add("requests");
-  if(hasAny(["marketing"]))visibleTabs.add("settings");
-  if(isMaster)visibleTabs.add("pretinha");if(canUsers)visibleTabs.add("users");
+  const visibleTabs=new Set(data.admin.mustChangePassword?["profile"]:["overview","profile"]);
+  if(!data.admin.mustChangePassword&&hasAny(["news","products","documents","gallery","opportunities","academic"]))visibleTabs.add("content");
+  if(!data.admin.mustChangePassword&&hasAny(["events"]))visibleTabs.add("events");
+  if(!data.admin.mustChangePassword&&hasAny(["stores","stores_approve"]))visibleTabs.add("stores");
+  if(!data.admin.mustChangePassword&&hasAny(["presidency","secretary"]))visibleTabs.add("directors");
+  if(!data.admin.mustChangePassword&&hasAny(["requests","products","stores","events","opportunities"]))visibleTabs.add("requests");
+  if(!data.admin.mustChangePassword&&hasAny(["marketing"]))visibleTabs.add("settings");
+  if(!data.admin.mustChangePassword&&isMaster)visibleTabs.add("pretinha");if(!data.admin.mustChangePassword&&canUsers)visibleTabs.add("users");
   return (
     <div className="admin-shell">
       <aside className="admin-sidebar">
@@ -112,9 +119,11 @@ export function Dashboard() {
           {[
             ["overview", "Visão geral"],
             ["content", "Conteúdos"],
+            ["events", "Eventos"],
+            ["stores", "Vendinhas"],
             ["directors", "Membros"],
             ["requests", "Solicitações"],
-            ["pretinha", "Pretinha"],
+            ["pretinha", "Olhares CAECOMP"],
             ["settings", "Site e seções"],
             ["users", "Usuários"],
             ["profile", "Minha conta"],
@@ -145,9 +154,11 @@ export function Dashboard() {
         {message && <div className="admin-message">{message}</div>}
         {tab === "overview" && <Overview data={data} />}{" "}
         {tab === "content" && <ContentPanel rows={data.content} admin={data.admin} call={call} />}{" "}
+        {tab === "events" && <EventsPanel rows={data.content.filter(row=>row.module==="events")} call={call} />}{" "}
+        {tab === "stores" && <StoresPanel stores={data.stores} products={data.content.filter(row=>row.module==="stores")} users={data.users} admin={data.admin} call={call} />}{" "}
         {tab === "directors" && <Directors rows={data.directors} call={call} />}{" "}
         {tab === "requests" && <Requests rows={data.requests} call={call} />}{" "}
-        {tab === "pretinha" && isMaster && <PretinhaPanel rows={data.pretinha} call={call} />}{" "}
+        {tab === "pretinha" && isMaster && <PretinhaPanel rows={data.pretinha} campaigns={data.campaigns} admin={data.admin} call={call} />}{" "}
         {tab === "settings" && (
           <Settings settings={data.settings} call={call} />
         )}{" "}
@@ -158,7 +169,7 @@ export function Dashboard() {
             call={call}
           />
         )}{" "}
-        {tab === "profile" && <Profile call={call} />}
+        {tab === "profile" && <Profile call={call} required={data.admin.mustChangePassword} />}
       </section>
     </div>
   );
@@ -227,7 +238,7 @@ function ContentPanel({
   const master = ["master", "presidency", "supreme"].includes(admin.accessLevel);
   const canApproveStores = master || admin.permissions.includes("stores_approve");
   const modulePermissions:Record<string,string>={news:"news",events:"events",ca_products:"products",stores:"stores",documents:"documents",gallery:"gallery",company_opportunities:"opportunities",academic_opportunities:"academic"};
-  const availableModules=modules.filter((module)=>master||admin.permissions.includes("site_manage")||admin.permissions.includes(modulePermissions[module]));
+  const availableModules=modules.filter((module)=>!['events','stores'].includes(module)&&(master||admin.permissions.includes("site_manage")||admin.permissions.includes(modulePermissions[module])));
   const activeModule=availableModules.includes(selectedModule)?selectedModule:(availableModules[0]??"");
   const statusLabels: Record<string, string> = { draft: "Rascunho", pending: "Aguardando aprovação", published: "Publicado", rejected: "Não aprovado", archived: "Arquivado" };
   async function editStore(row: Row) {
@@ -398,6 +409,28 @@ function ContentPanel({
     </div>
   );
 }
+function EventsPanel({rows,call}:{rows:Row[];call:(u:string,m:string,b?:unknown)=>Promise<boolean>}){
+  const [open,setOpen]=useState(false);
+  async function submit(f:FormData){
+    const poster=f.get("poster");const info=f.get("infoImage");const media:string[]=[];
+    try{if(poster instanceof File&&poster.size)media.push(await uploadAdminFile(poster));if(info instanceof File&&info.size)media.push(await uploadAdminFile(info));}catch(error){alert(error instanceof Error?error.message:"Falha no envio das imagens.");return}
+    const lots=String(f.get("lots")||"").split("\n").map(line=>line.trim()).filter(Boolean).map(line=>{const [name,price,status]=line.split("|").map(v=>v.trim());return {name,price:price?Number(price):0,status:status||"open"}});
+    const body={module:"events",title:String(f.get("title")),summary:String(f.get("summary")),content:String(f.get("content")||""),status:String(f.get("status")||"draft"),startAt:String(f.get("startAt")||""),endAt:String(f.get("endAt")||""),location:String(f.get("location")||""),capacityMode:String(f.get("capacityMode")||"unlimited"),capacityQty:String(f.get("capacityQty")||""),ctaLabel:"Fazer inscrição",ctaUrl:String(f.get("registrationUrl")||""),imageUrl:media[0]||"",metadata:JSON.stringify({registrationStatus:String(f.get("registrationStatus")||"open"),changeNotice:String(f.get("changeNotice")||""),isFree:f.get("isFree")==="true",lots,media,postEventMedia:String(f.get("postEventMedia")||"").split("\n").map(v=>v.trim()).filter(Boolean),registrationUrl:String(f.get("registrationUrl")||"")})};
+    if(await call("/api/admin/content","POST",body))setOpen(false);
+  }
+  async function updateEvent(row:Row){let meta:Record<string,unknown>={};try{meta=JSON.parse(String(row.metadata||"{}"))}catch{}const registrationStatus=prompt("Status das inscrições: open, closed ou sold_out",String(meta.registrationStatus||"open"));if(!registrationStatus)return;const changeNotice=prompt("Aviso de mudança (vazio para nenhum):",String(meta.changeNotice||""));if(changeNotice===null)return;await call(`/api/admin/content/${row.$id}`,"PATCH",{metadata:JSON.stringify({...meta,registrationStatus,changeNotice})});}
+  return <div><div className="admin-title row"><div><span className="kicker">Agenda completa</span><h2>Eventos</h2></div><button className="button primary" onClick={()=>setOpen(!open)}>Novo evento</button></div>{open&&<form action={submit} className="admin-form"><label>Título<input name="title" required/></label><label>Resumo<textarea name="summary" required/></label><label className="full">Descrição<textarea name="content" rows={5}/></label><label>Status no site<select name="status"><option value="draft">Rascunho</option><option value="published">Publicado</option></select></label><label>Inscrições<select name="registrationStatus"><option value="open">Abertas</option><option value="closed">Encerradas</option><option value="sold_out">Esgotadas</option></select></label><label>Início<input name="startAt" type="datetime-local" required/></label><label>Fim<input name="endAt" type="datetime-local"/></label><label>Local<input name="location"/></label><label>Tipo<select name="isFree"><option value="true">Gratuito</option><option value="false">Pago</option></select></label><label>Capacidade<select name="capacityMode"><option value="unlimited">Ilimitada</option><option value="limited">Limitada</option></select></label><label>Quantidade de vagas<input name="capacityQty" type="number" min="0"/></label><label className="full">Link de inscrição<input name="registrationUrl" type="url"/></label><label>Cartaz<input name="poster" type="file" accept="image/jpeg,image/png,image/webp"/></label><label>Segunda imagem<input name="infoImage" type="file" accept="image/jpeg,image/png,image/webp"/></label><label className="full">Lotes (um por linha: Nome | valor | open/closed/sold_out)<textarea name="lots" rows={4} placeholder="1º lote | 15,00 | open"/></label><label className="full">Aviso de mudança<textarea name="changeNotice" placeholder="Só preencha quando houver uma alteração importante."/></label><label className="full">Fotos/vídeos pós-evento (uma URL por linha)<textarea name="postEventMedia"/></label><button className="button primary">Salvar evento</button></form>}<div className="admin-table">{rows.map(row=><article key={row.$id}><div><span>Evento</span><strong>{String(row.title)}</strong><small>{row.startAt?new Date(String(row.startAt)).toLocaleString("pt-BR"):"Sem data"} · {String(row.status)}</small></div><div><button onClick={()=>void updateEvent(row)}>Inscrições e mudanças</button><button onClick={()=>call(`/api/admin/content/${row.$id}`,"PATCH",{status:row.status==="published"?"draft":"published"})}>{row.status==="published"?"Retirar do site":"Publicar"}</button></div></article>)}</div></div>
+}
+
+function StoresPanel({stores,products,users,admin,call}:{stores:Row[];products:Row[];users:Row[];admin:Admin;call:(u:string,m:string,b?:unknown)=>Promise<boolean>}){
+ const [newStore,setNewStore]=useState(false);const [newProduct,setNewProduct]=useState(false);const master=["master","presidency","supreme"].includes(admin.accessLevel);const canApprove=master||admin.permissions.includes("stores_approve");const canManageOwn=master||admin.permissions.includes("stores");
+ async function createStore(f:FormData){const body=Object.fromEntries(f.entries()) as Record<string,unknown>;for(const key of ["logo","cover"]){const file=f.get(key);if(file instanceof File&&file.size){try{body[key==="logo"?"logoUrl":"coverUrl"]=await uploadAdminFile(file)}catch(error){alert(error instanceof Error?error.message:"Falha no envio.");return}}delete body[key]}body.active=true;body.approved=true;if(await call("/api/admin/stores","POST",body))setNewStore(false)}
+ async function createProduct(f:FormData){const body=Object.fromEntries(f.entries()) as Record<string,unknown>;const image=f.get("image");if(image instanceof File&&image.size){try{body.imageUrl=await uploadAdminFile(image)}catch(error){alert(error instanceof Error?error.message:"Falha no envio.");return}}delete body.image;body.module="stores";body.status=master?String(body.status||"pending"):"pending";body.stockMode=body.stockQty?"limited":"unlimited";if(await call("/api/admin/content","POST",body))setNewProduct(false)}
+ async function editStore(row:Row){const name=prompt("Nome da vendinha:",String(row.name||""));if(!name)return;const description=prompt("Descrição:",String(row.description||""));if(description===null)return;const whatsapp=prompt("WhatsApp:",String(row.whatsapp||""));if(whatsapp===null)return;await call(`/api/admin/stores/${row.$id}`,"PATCH",{name,description,whatsapp})}
+ async function editProduct(row:Row){const title=prompt("Produto:",String(row.title||""));if(!title)return;const summary=prompt("Descrição:",String(row.summary||""));if(summary===null)return;const price=prompt("Preço:",String(row.price||""));if(price===null)return;const stock=prompt("Estoque (vazio = ilimitado):",String(row.stockQty||""));if(stock===null)return;await call(`/api/admin/content/${row.$id}`,"PATCH",{title,summary,price:price?Number(price):null,stockMode:stock?"limited":"unlimited",stockQty:stock?Number(stock):null})}
+ return <div><div className="admin-title row"><div><span className="kicker">Lojas virtuais</span><h2>Vendinhas</h2></div><div>{master&&<button className="button" onClick={()=>setNewStore(!newStore)}>Cadastrar vendinha</button>}{canManageOwn&&<button className="button primary" disabled={!stores.length} onClick={()=>setNewProduct(!newProduct)}>Novo produto</button>}</div></div>{newStore&&<form action={createStore} className="admin-form"><label>Nome<input name="name" required/></label><label>Responsável<select name="ownerUserId" required><option value="">Selecione</option>{users.filter(u=>Array.isArray(u.permissions)&&u.permissions.includes("stores")).map(u=><option value={String(u.userId)} key={u.$id}>{String(u.name)} · {String(u.email)}</option>)}</select></label><label className="full">Descrição<textarea name="description"/></label><label>WhatsApp<input name="whatsapp"/></label><label>Instagram oficial<input name="instagram" type="url"/></label><label>Logo<input name="logo" type="file" accept="image/jpeg,image/png,image/webp"/></label><label>Imagem de capa (opcional)<input name="cover" type="file" accept="image/jpeg,image/png,image/webp"/></label><button className="button primary">Criar vendinha</button></form>}{newProduct&&<form action={createProduct} className="admin-form"><label>Vendinha<select name="storeId" required>{stores.map(s=><option value={s.$id} key={s.$id}>{String(s.name)}</option>)}</select></label><label>Produto<input name="title" required/></label><label className="full">Descrição<textarea name="summary" required/></label><label>Preço<input name="price" type="number" step="0.01"/></label><label>Estoque (vazio = ilimitado)<input name="stockQty" type="number" min="0"/></label><label>Imagem<input name="image" type="file" accept="image/jpeg,image/png,image/webp"/></label>{master&&<label>Status<select name="status"><option value="pending">Aguardar aprovação</option><option value="published">Publicar agora</option></select></label>}<button className="button primary">Salvar produto</button></form>}<div className="admin-card"><h3>Minhas lojas e lojas cadastradas</h3><div className="admin-table">{stores.map(store=><article key={store.$id}><div><span>{store.approved?"Aprovada":"Aguardando aprovação"}</span><strong>{String(store.name)}</strong><small>{String(store.whatsapp||"Sem WhatsApp")}</small></div><div>{(master||store.ownerUserId===admin.userId)&&<button onClick={()=>void editStore(store)}>Editar loja</button>}{master&&<button onClick={()=>call(`/api/admin/stores/${store.$id}`,"PATCH",{approved:!store.approved})}>{store.approved?"Suspender":"Aprovar"}</button>}</div></article>)}</div></div><div className="admin-card"><h3>Produtos</h3><div className="admin-table">{products.map(row=><article key={row.$id}><div><span>{String(row.status)}</span><strong>{String(row.title)}</strong><small>{String(stores.find(s=>s.$id===row.storeId)?.name||"Vendinha")}</small></div><div>{(master||row.ownerUserId===admin.userId)&&<button onClick={()=>void editProduct(row)}>Editar</button>}{canApprove&&<button onClick={()=>call(`/api/admin/content/${row.$id}`,"PATCH",{status:row.status==="published"?"pending":"published"})}>{row.status==="published"?"Retirar":"Aprovar"}</button>}{(master||row.ownerUserId===admin.userId)&&<button className="danger" onClick={()=>confirm("Excluir produto?")&&call(`/api/admin/content/${row.$id}`,"DELETE")}>Excluir</button>}</div></article>)}</div></div></div>
+}
+
 function Directors({
   rows,
   call,
@@ -571,22 +604,30 @@ function Requests({
 }
 function PretinhaPanel({
   rows,
+  campaigns,
+  admin,
   call,
 }: {
   rows: Row[];
+  campaigns: Row[];
+  admin: Admin;
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
 }) {
-  const approved = rows.filter((row) => row.status === "approved").length;
-  const pending = rows.filter((row) => row.status === "pending").length;
+  const [campaignId,setCampaignId]=useState(String(campaigns[0]?.$id||""));
+  const [open,setOpen]=useState(false);
+  const campaign=campaigns.find(c=>c.$id===campaignId)??campaigns[0];
+  const selectedRows=rows.filter(row=>row.campaignId===campaign?.$id);
+  const approved = selectedRows.filter((row) => row.status === "approved").length;
+  const pending = selectedRows.filter((row) => row.status === "pending").length;
+  const limit=Number(campaign?.selectionLimit||30);
+  async function createCampaign(f:FormData){const body=Object.fromEntries(f.entries());body.status="open";if(await call("/api/admin/campaigns","POST",body))setOpen(false)}
   return (
     <div>
-      <div className="admin-title">
-        <span className="kicker">Seleção especial</span>
-        <h2>Fotos da Pretinha</h2>
-        <p className="admin-subtitle">{pending} aguardando análise · {approved}/30 selecionadas</p>
-      </div>
+      <div className="admin-title row"><div><span className="kicker">Iniciativas fotográficas</span><h2>Olhares CAECOMP</h2><p className="admin-subtitle">{pending} aguardando análise · {approved}/{limit} selecionadas</p></div><button className="button primary" onClick={()=>setOpen(!open)}>Nova edição</button></div>
+      {open&&<form action={createCampaign} className="admin-form"><label>Título<input name="title" required placeholder="Ex.: Nosso prédio de aulas"/></label><label>Limite de fotos<input name="selectionLimit" type="number" min="1" max="100" defaultValue="30"/></label><label className="full">Resumo<textarea name="summary" required/></label><label className="full">Descrição<textarea name="description"/></label><label>Imagem de capa (URL)<input name="coverUrl"/></label><label>Encerramento automático<input name="endsAt" type="datetime-local"/></label><button className="button primary">Abrir iniciativa</button></form>}
+      <div className="campaign-admin-bar"><label>Edição<select value={campaign?.$id||""} onChange={e=>setCampaignId(e.target.value)}>{campaigns.map(c=><option value={c.$id} key={c.$id}>{String(c.title)} · {String(c.status)}</option>)}</select></label>{campaign&&admin.accessLevel==="supreme"&&<div><button onClick={()=>call("/api/admin/campaigns/"+campaign.$id,"PATCH",{status:campaign.status==="open"?"closed":"open"})}>{campaign.status==="open"?"Finalizar envios":"Reabrir envios"}</button>{campaign.status!=="archived"&&<button onClick={()=>call("/api/admin/campaigns/"+campaign.$id,"PATCH",{status:"archived"})}>Arquivar edição</button>}</div>}</div>
       <div className="pretinha-admin-grid">
-        {rows.length ? rows.map((row) => (
+        {selectedRows.length ? selectedRows.map((row) => (
           <article key={row.$id} className={`pretinha-admin-card status-${String(row.status)}`}>
             <div className="pretinha-admin-image">
               <Image src={`/api/pretinha/${row.$id}/image`} fill sizes="(max-width: 900px) 100vw, 300px" alt={String(row.title || "Foto enviada da Pretinha")} />
@@ -597,8 +638,8 @@ function PretinhaPanel({
               {Boolean(row.description) && <p>{String(row.description)}</p>}
               <small>Enviada em {new Date(String(row.submittedAt)).toLocaleString("pt-BR")}</small>
               <div className="pretinha-admin-actions">
-                {row.status !== "approved" && <button disabled={approved >= 30} onClick={() => call(`/api/admin/pretinha/${row.$id}`, "PATCH", { status: "approved" })}>Selecionar</button>}
-                {row.status === "approved" && <button onClick={() => call(`/api/admin/pretinha/${row.$id}`, "PATCH", { status: "pending" })}>Remover das 30</button>}
+                {row.status !== "approved" && <button disabled={approved >= limit} onClick={() => call(`/api/admin/pretinha/${row.$id}`, "PATCH", { status: "approved" })}>Selecionar</button>}
+                {row.status === "approved" && <button onClick={() => call(`/api/admin/pretinha/${row.$id}`, "PATCH", { status: "pending" })}>Remover da seleção</button>}
                 {row.status !== "rejected" && <button onClick={() => call(`/api/admin/pretinha/${row.$id}`, "PATCH", { status: "rejected" })}>Não selecionar</button>}
                 <button className="danger" onClick={() => confirm("Excluir definitivamente esta foto e o arquivo?") && call(`/api/admin/pretinha/${row.$id}`, "DELETE")}>Excluir</button>
               </div>
@@ -802,8 +843,10 @@ function UsersPanel({
 }
 function Profile({
   call,
+  required,
 }: {
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
+  required:boolean;
 }) {
   async function submit(f: FormData) {
     await call("/api/admin/profile", "PATCH", Object.fromEntries(f.entries()));
@@ -813,6 +856,7 @@ function Profile({
       <div className="admin-title">
         <span className="kicker">Dados pessoais</span>
         <h2>Minha conta</h2>
+        {required&&<p className="admin-subtitle">Por segurança, defina uma nova senha antes de acessar o restante do painel.</p>}
       </div>
       <form action={submit} className="admin-form one">
         <label>

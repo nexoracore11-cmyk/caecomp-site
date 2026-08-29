@@ -1,16 +1,6 @@
 import type { Metadata } from "next";
-import { ListingPage } from "../components/listing-page";
+import Link from "next/link";
 import { getPublicData, requirePublicSection } from "../lib/public-data";
-export const metadata: Metadata = { title: "Eventos" };
-export default async function Page() {
-  const data = await getPublicData();
-  requirePublicSection(data,"events");
-  return (
-    <ListingPage
-      kicker="Agenda CAECOMP"
-      title="Eventos que aproximam"
-      description="Palestras, visitas, recepções, workshops, cultura e integração. Eventos podem ter vagas limitadas ou ilimitadas."
-      items={data.content.filter((i) => i.module === "events")}
-    />
-  );
-}
+export const metadata:Metadata={title:"Eventos"};
+const statusOf=(item:{startAt?:string;endAt?:string;metadata?:string})=>{const past=Boolean(item.endAt&&new Date(item.endAt)<new Date())||Boolean(!item.endAt&&item.startAt&&new Date(item.startAt)<new Date());if(past)return "Evento realizado";try{const s=JSON.parse(item.metadata||"{}").registrationStatus;return s==="sold_out"?"Esgotado":s==="closed"?"Inscrições encerradas":"Inscrições abertas"}catch{return "Confira as inscrições"}};
+export default async function Page(){const data=await getPublicData();requirePublicSection(data,"events");const items=data.content.filter(i=>i.module==="events").sort((a,b)=>new Date(a.startAt||0).getTime()-new Date(b.startAt||0).getTime());return <><section className="page-hero"><span className="kicker light">Agenda CAECOMP</span><h1>Eventos que aproximam</h1><p>Workshops, palestras, visitas, recepções e encontros. Acompanhe vagas, lotes, mudanças e registros após cada evento.</p></section><section className="page-content"><div className="event-list">{items.map(item=><Link className="event-list-card" href={`/eventos/${item.slug}`} key={item.id}><span>{statusOf(item)}</span><div>{item.startAt&&<time dateTime={item.startAt}>{new Date(item.startAt).toLocaleDateString("pt-BR",{day:"2-digit",month:"short",year:"numeric",timeZone:"America/Sao_Paulo"})}</time>}<h2>{item.title}</h2><p>{item.summary}</p>{item.location&&<small>{item.location}</small>}</div><strong>Ver detalhes</strong></Link>)}</div>{!items.length&&<div className="empty">Nenhum evento publicado ainda.</div>}</section></>}

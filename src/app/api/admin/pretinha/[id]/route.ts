@@ -5,7 +5,7 @@ import { Query, storage, tables } from "@/app/lib/appwrite";
 import { pretinhaModerationSchema } from "@/app/lib/schemas";
 import { rejectCrossOrigin } from "@/app/lib/security";
 
-type PhotoRow = { $id: string; fileId: string; status: string; selectedRank?: number };
+type PhotoRow = { $id: string; fileId: string; status: string; selectedRank?: number; campaignId?:string };
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const crossOrigin = rejectCrossOrigin(request); if (crossOrigin) return crossOrigin;
@@ -17,10 +17,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const current = await tables().getRow({ databaseId: config.databaseId, tableId: "pretinha_photos", rowId: id }) as unknown as PhotoRow;
   let selectedRank: number | null = null;
   if (parsed.data.status === "approved") {
-    const approved = await tables().listRows({ databaseId: config.databaseId, tableId: "pretinha_photos", queries: [Query.equal("status", ["approved"]), Query.limit(30)], total: false });
+    const campaign=current.campaignId?await tables().getRow({databaseId:config.databaseId,tableId:"photo_campaigns",rowId:current.campaignId}).catch(()=>null):null;
+    const limit=Number(campaign?.selectionLimit??30);
+    const approved = await tables().listRows({ databaseId: config.databaseId, tableId: "pretinha_photos", queries: [Query.equal("status", ["approved"]), ...(current.campaignId?[Query.equal("campaignId",[current.campaignId])]:[]), Query.limit(limit)], total: false });
     const used = new Set(approved.rows.filter((row) => row.$id !== id).map((row) => Number(row.selectedRank)));
-    selectedRank = parsed.data.selectedRank ?? current.selectedRank ?? Array.from({ length: 30 }, (_, index) => index + 1).find((rank) => !used.has(rank)) ?? null;
-    if (!selectedRank || used.has(selectedRank)) return NextResponse.json({ error: "As 30 posições já estão ocupadas ou essa posição já está em uso." }, { status: 409 });
+    selectedRank = parsed.data.selectedRank ?? current.selectedRank ?? Array.from({ length: limit }, (_, index) => index + 1).find((rank) => !used.has(rank)) ?? null;
+    if (!selectedRank || selectedRank>limit || used.has(selectedRank)) return NextResponse.json({ error: `As ${limit} posições já estão ocupadas ou essa posição já está em uso.` }, { status: 409 });
   }
   try {
     const row = await tables().updateRow({ databaseId: config.databaseId, tableId: "pretinha_photos", rowId: id, data: { status: parsed.data.status, selectedRank, reviewedAt: new Date().toISOString(), reviewedBy: admin.userId } });

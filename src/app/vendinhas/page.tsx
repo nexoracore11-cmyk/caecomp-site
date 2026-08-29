@@ -1,42 +1,6 @@
-/* eslint-disable @next/next/no-img-element */
 import type { Metadata } from "next";
-import { RequestForm } from "../components/request-form";
+import Image from "next/image";
+import Link from "next/link";
 import { getPublicData, requirePublicSection } from "../lib/public-data";
-export const metadata: Metadata = { title: "Vendinhas" };
-export default async function Page() {
-  const data=await getPublicData();requirePublicSection(data,"stores");const items = data.content.filter((i) => i.module === "stores");
-  return (
-    <>
-      <section className="page-hero">
-        <span className="kicker light">De estudante para estudante</span>
-        <h1>Vendinhas da comunidade</h1>
-        <p>
-          Um espaço de divulgação para iniciativas dos estudantes. O CAECOMP não
-          processa pagamentos; cada responsável combina atendimento e entrega
-          diretamente.
-        </p>
-      </section>
-      <section className="page-content">
-        <div className="product-grid">
-          {items.map((item) => (
-            <article key={item.id} className="product-card">
-              {item.imageUrl && <img className="product-image" src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" />}
-              <span className="eyebrow">{item.ownerName}</span>
-              <h3>{item.title}</h3>
-              <p>{item.summary}</p>
-              {item.price != null && <div className="price">{item.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</div>}
-              <div className="stock">
-                Consulte disponibilidade com a vendinha
-              </div>
-              <RequestForm
-                itemId={item.id}
-                kind="store"
-                label="Tenho interesse"
-              />
-            </article>
-          ))}
-        </div>
-      </section>
-    </>
-  );
-}
+export const metadata:Metadata={title:"Vendinhas"};
+export default async function Page(){const data=await getPublicData();requirePublicSection(data,"stores");return <><section className="page-hero"><span className="kicker light">De estudante para estudante</span><h1>Vendinhas da comunidade</h1><p>Cada iniciativa tem sua própria vitrine. O CAECOMP divulga os produtos, mas atendimento, pagamento e entrega são combinados diretamente com a vendinha.</p></section><section className="page-content">{data.stores.length?<div className="store-grid">{data.stores.map(store=><Link href={`/vendinhas/${store.slug}`} className="store-card" key={store.id}>{store.coverUrl&&<div className="store-cover"><Image src={store.coverUrl} fill sizes="(max-width:760px) 100vw, 50vw" alt=""/></div>}<div className="store-card-body">{store.logoUrl&&<div className="store-logo"><Image src={store.logoUrl} fill sizes="72px" alt={`Logo de ${store.name}`}/></div>}<span>Vendinha aprovada</span><h2>{store.name}</h2><p>{store.description||"Conheça os produtos desta vendinha."}</p><strong>Visitar loja</strong></div></Link>)}</div>:<div className="empty">Nenhuma vendinha aprovada e ativa no momento.</div>}</section></>}

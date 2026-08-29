@@ -13,6 +13,7 @@ export async function POST(request: Request) {
   const form = await request.formData().catch(() => null);
   if (!form) return NextResponse.json({ error: "Envio inválido." }, { status: 400 });
   const photo = form.get("photo");
+  const campaignId=String(form.get("campaignId")??"");
   const parsed = pretinhaSubmissionSchema.safeParse({ title: String(form.get("title") ?? ""), description: String(form.get("description") ?? ""), website: String(form.get("website") ?? "") });
   if (!parsed.success || parsed.data.website)
     return NextResponse.json({ error: "Revise os campos enviados." }, { status: 400 });
@@ -21,6 +22,9 @@ export async function POST(request: Request) {
   const buffer = Buffer.from(await photo.arrayBuffer());
   if (!validFileSignature(buffer, photo.type))
     return NextResponse.json({ error: "O conteúdo do arquivo não corresponde a uma imagem válida." }, { status: 400 });
+  if(!campaignId)return NextResponse.json({error:"Iniciativa não informada."},{status:400});
+  const campaign=await tables().getRow({databaseId:config.databaseId,tableId:"photo_campaigns",rowId:campaignId}).catch(()=>null);
+  if(!campaign||campaign.status!=="open")return NextResponse.json({error:"Os envios desta iniciativa estão encerrados."},{status:409});
 
   const submissionKey = clientFingerprint(request);
   const recent = await tables().listRows({ databaseId: config.databaseId, tableId: "pretinha_photos", queries: [Query.equal("submissionKey", [submissionKey]), Query.orderDesc("submittedAt"), Query.limit(5)], total: false });
@@ -34,7 +38,7 @@ export async function POST(request: Request) {
       databaseId: config.databaseId,
       tableId: "pretinha_photos",
       rowId: ID.unique(),
-      data: { fileId: saved.$id, title: parsed.data.title || null, description: parsed.data.description || null, mimeType: photo.type, status: "pending", submittedAt: new Date().toISOString(), submissionKey },
+      data: { fileId: saved.$id, title: parsed.data.title || null, description: parsed.data.description || null, mimeType: photo.type, status: "pending", submittedAt: new Date().toISOString(), submissionKey, campaignId },
     });
     return NextResponse.json({ ok: true, submissionId: row.$id }, { status: 201 });
   } catch {

@@ -11,7 +11,10 @@ Portal público e painel administrativo do Centro Acadêmico da Engenharia de Co
 - permissão separada para aprovar vendinhas, disponível para masters ou usuários explicitamente autorizados;
 - diretoria atual e contatos opcionais;
 - três publicações do Instagram selecionadas pelo Marketing;
-- campanha da Pretinha com envio público, validação de imagem, fila de moderação e galeria das 30 selecionadas;
+- Olhares CAECOMP com várias campanhas fotográficas, arquivo histórico, encerramento pelo Master Supremo e a Pretinha como primeira edição;
+- lojas virtuais individuais para vendinhas, com logo, capa, responsável e produtos sujeitos a aprovação;
+- eventos com inscrições abertas, encerradas ou esgotadas, gratuidade, lotes, avisos e mídia pós-evento;
+- biblioteca pesquisável, leitor de PDF no site, download e área para o Jornal CAECOMP;
 - usuários com permissões acumuláveis por diretoria e níveis `Equipe`, `Master`, `Presidência` e `Master Supremo`;
 - Master Supremo protegido; Presidência administra masters comuns; masters comuns não alteram outros masters;
 - somente o Master Supremo redefine a senha de outra conta;

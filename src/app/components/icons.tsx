@@ -3,7 +3,6 @@ import {
   CalendarDays,
   FileText,
   GraduationCap,
-  Camera,
   Mail,
   MapPin,
   Menu,
@@ -12,8 +11,11 @@ import {
   ShoppingBag,
   Users,
   X,
+  Moon,
+  Sun,
 } from "lucide-react";
-const Instagram = Camera;
+import type { SVGProps } from "react";
+function Instagram({size=24,...props}:{size?:number|string}&SVGProps<SVGSVGElement>){return <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}><rect width="18" height="18" x="3" y="3" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>}
 export {
   ArrowUpRight,
   CalendarDays,
@@ -28,4 +30,6 @@ export {
   ShoppingBag,
   Users,
   X,
+  Moon,
+  Sun,
 };

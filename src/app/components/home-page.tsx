@@ -62,7 +62,7 @@ export function HomePage({ data }: { data: PublicData }) {
             <div className="orbit two" />
             <div className="logo-stage">
               <Image
-                src="/caecomp-logo.jpg"
+                src="/caecomp-logo-official.jpg"
                 width={340}
                 height={340}
                 alt="Marca do CAECOMP"
@@ -176,7 +176,7 @@ export function HomePage({ data }: { data: PublicData }) {
         <section className="section about-grid">
           <div className="about-art">
             <Image
-              src="/caecomp-logo.jpg"
+              src="/caecomp-logo-official.jpg"
               fill
               sizes="(max-width: 800px) 100vw, 45vw"
               alt="Marca CAECOMP"
@@ -221,7 +221,7 @@ export function HomePage({ data }: { data: PublicData }) {
               return <article key={index} className="instagram-card">
                 <div className="ig-top">
                   <Image
-                    src="/caecomp-logo.jpg"
+                    src="/caecomp-logo-official.jpg"
                     width={36}
                     height={36}
                     alt=""
@@ -230,7 +230,7 @@ export function HomePage({ data }: { data: PublicData }) {
                   <span>•••</span>
                 </div>
                 <div className={`ig-art ${embed ? "embed" : ""}`}>
-                  {embed ? <iframe src={embed} title={`Publicação ${index + 1} do CAECOMP no Instagram`} loading="lazy" allow="encrypted-media" /> : <Image src="/caecomp-logo.jpg" fill sizes="33vw" alt="Selecione uma publicação no painel" />}
+                  {embed ? <iframe src={embed} title={`Publicação ${index + 1} do CAECOMP no Instagram`} loading="lazy" allow="encrypted-media" /> : <Image src="/caecomp-logo-official.jpg" fill sizes="33vw" alt="Selecione uma publicação no painel" />}
                 </div>
                 <a href={url} target="_blank" rel="noreferrer" className="ig-bottom">
                   <Instagram />
