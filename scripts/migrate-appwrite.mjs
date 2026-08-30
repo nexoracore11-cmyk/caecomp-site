@@ -120,11 +120,13 @@ const definitions = [
       s("linkedin", false, 2048),
       s("lattes", false, 2048),
       s("instagram", false, 2048),
+      s("userId", false, 36),
       b("active", true),
       n("sortOrder"),
     ],
     indexes: [
       { key: "active_order", type: "key", columns: ["active", "sortOrder"] },
+      { key: "user_idx", type: "key", columns: ["userId"] },
     ],
   },
   {
@@ -176,8 +178,14 @@ const definitions = [
   {
     id: "store_profiles",
     name: "Vendinhas",
-    columns: [s("name",true,128),s("slug",true,180),t("description"),s("whatsapp",false,32),s("instagram",false,2048),s("logoUrl",false,2048),s("coverUrl",false,2048),s("ownerUserId",true,36),b("active",true),b("approved",true)],
+    columns: [s("name",true,128),s("slug",true,180),t("description"),s("whatsapp",false,32),s("phone",false,32),s("email",false,255),s("instagram",false,2048),s("logoUrl",false,2048),s("coverUrl",false,2048),s("ownerUserId",true,36),b("active",true),b("approved",true)],
     indexes: [{key:"slug_unique",type:"unique",columns:["slug"]},{key:"owner_idx",type:"key",columns:["ownerUserId"]},{key:"public_idx",type:"key",columns:["active","approved"]}],
+  },
+  {
+    id: "calendar_items",
+    name: "Calendário",
+    columns: [s("title",true,255),t("summary"),d("startsAt",true),d("endsAt"),s("kind",true,32),s("department",false,128),s("sourceUrl",false,2048),s("createdBy",false,36),b("active",true)],
+    indexes: [{key:"start_idx",type:"key",columns:["startsAt"]},{key:"public_start",type:"key",columns:["active","startsAt"]}],
   },
   {
     id: "photo_campaigns",
@@ -357,9 +365,9 @@ const settings = {
   heroTitle: "Engenharia que conecta. Comunidade que transforma.",
   heroText:
     "O portal do Centro Acadêmico da Engenharia de Computação da UFG — representação, oportunidades, projetos e vida universitária em um só lugar.",
-  aboutTitle: "Somos a voz de quem constrói o futuro",
+  aboutTitle: "Entidade estudantil de Engenharia de Computação",
   aboutText:
-    "O CAECOMP representa os estudantes de Engenharia de Computação e cria pontes com projetos, empresas e oportunidades.",
+    "O Centro Acadêmico da Engenharia de Computação Weber Martins representa quem estuda Engenharia de Computação na UFG. O CAECOMP organiza demandas, constrói diálogo com a universidade e cria espaços para a formação, a convivência e a vida estudantil.",
   historyText:
     "O Centro Acadêmico da Engenharia de Computação Weber Martins foi fundado em 20 de outubro de 2017.",
   sections: {
@@ -373,9 +381,11 @@ const settings = {
     company_opportunities: true,
     academic_opportunities: true,
     directors: true,
+    departments: true,
+    calendar: true,
     instagram: true,
     about: true,
-    history: true,
+    history: false,
     photo_initiatives: true,
     journal: true,
   },
@@ -400,14 +410,25 @@ if (!settingRows.rows.length)
   });
 else {
   const currentSettings = JSON.parse(String(settingRows.rows[0].value));
-  const missingSections={...(currentSettings.sections?.pretinha===undefined?{pretinha:true}:{}),...(currentSettings.sections?.photo_initiatives===undefined?{photo_initiatives:true}:{}),...(currentSettings.sections?.journal===undefined?{journal:true}:{})};
-  if (Object.keys(missingSections).length)
+  const missingSections={...(currentSettings.sections?.pretinha===undefined?{pretinha:true}:{}),...(currentSettings.sections?.photo_initiatives===undefined?{photo_initiatives:true}:{}),...(currentSettings.sections?.journal===undefined?{journal:true}:{}),...(currentSettings.sections?.departments===undefined?{departments:true}:{}),...(currentSettings.sections?.calendar===undefined?{calendar:true}:{})};
+  const legacyAbout="O CAECOMP representa os estudantes de Engenharia de Computação e cria pontes com projetos, empresas e oportunidades.";
+  const shouldRefreshCopy=currentSettings.aboutText===legacyAbout||currentSettings.aboutTitle==="Somos a voz de quem constrói o futuro";
+  if (Object.keys(missingSections).length||shouldRefreshCopy)
     await tables.updateRow({
       databaseId,
       tableId: "site_settings",
       rowId: settingRows.rows[0].$id,
-      data: { value: JSON.stringify({ ...currentSettings, sections: { ...currentSettings.sections, ...missingSections } }) },
+      data: { value: JSON.stringify({ ...currentSettings, ...(shouldRefreshCopy?{aboutTitle:settings.aboutTitle,aboutText:settings.aboutText}:{}), sections: { ...currentSettings.sections, ...missingSections } }) },
     });
+}
+
+const calendarRows=await tables.listRows({databaseId,tableId:"calendar_items",queries:[Query.limit(1)],total:false});
+if(!calendarRows.rows.length){
+ const official="https://sistemas.ufg.br/consultas_publicas/resolucoes/arquivos/Resolucao_CEPEC_2025_1966.pdf";
+ const ufgEvents=[
+  ["Início das aulas 2026/1","2026-03-02","2026-03-02"],["Paixão de Cristo","2026-04-03","2026-04-03"],["International Day na UFG","2026-04-09","2026-04-09"],["Tiradentes","2026-04-21","2026-04-21"],["Espaço das Profissões - Goiânia","2026-05-13","2026-05-14"],["Semana do meio ambiente na UFG","2026-06-01","2026-06-06"],["Corpus Christi","2026-06-04","2026-06-04"],["Término das aulas 2026/1","2026-07-04","2026-07-04"],["Período de inverno 2026/3","2026-07-06","2026-08-08"],["Início das aulas 2026/2","2026-08-10","2026-08-10"],["Independência do Brasil","2026-09-07","2026-09-07"],["CONEPEC","2026-10-13","2026-10-16"],["23º CONPEEX","2026-11-09","2026-11-13"],["Consciência Negra","2026-11-20","2026-11-20"],["Término das aulas 2026/2","2026-12-12","2026-12-12"]
+ ];
+ for(const [title,start,end] of ufgEvents)await tables.createRow({databaseId,tableId:"calendar_items",rowId:ID.unique(),data:{title,summary:"Calendário Acadêmico e Escolar da UFG 2026.",startsAt:`${start}T00:00:00.000Z`,endsAt:`${end}T23:59:59.000Z`,kind:"ufg",sourceUrl:official,createdBy:owner.$id,active:true}});
 }
 
 const administratorRows = await tables.listRows({ databaseId, tableId: "administrators", queries: [Query.limit(500)], total: false });

@@ -21,6 +21,10 @@ export const metadata: Metadata = {
   title: { default: "CAECOMP UFG", template: "%s · CAECOMP UFG" },
   description: "Portal do Centro Acadêmico da Engenharia de Computação da UFG.",
   applicationName:"CAECOMP UFG",
+  keywords:["CAECOMP","Centro Acadêmico","Engenharia de Computação","UFG","Goiânia"],
+  alternates:{canonical:"/"},
+  robots:{index:true,follow:true},
+  verification: process.env.BING_SITE_VERIFICATION ? { other: { "msvalidate.01": process.env.BING_SITE_VERIFICATION } } : undefined,
   openGraph: { title: "CAECOMP UFG", description: "Engenharia que conecta. Comunidade que transforma.", images: ["/caecomp-logo-official.jpg"], locale: "pt_BR", type: "website" },
 };
 

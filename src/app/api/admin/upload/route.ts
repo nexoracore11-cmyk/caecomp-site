@@ -8,7 +8,7 @@ import { rejectCrossOrigin, validFileSignature } from "@/app/lib/security";
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOrigin(request); if (crossOrigin) return crossOrigin;
   const admin = await currentAdmin();
-  const uploadPermissions = ["site_manage", "news", "events", "products", "stores", "documents", "gallery", "opportunities", "academic"];
+  const uploadPermissions = ["site_manage", "news", "events", "products", "stores", "stores_manage", "documents", "gallery", "opportunities", "academic", "marketing", "presidency", "secretary"];
   if (!admin || (!isMaster(admin) && !admin.permissions.some((permission) => uploadPermissions.includes(permission))))
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   const form = await request.formData();

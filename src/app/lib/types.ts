@@ -1,6 +1,6 @@
 export const modules = [
   "news", "events", "ca_products", "stores", "documents", "gallery",
-  "company_opportunities", "academic_opportunities", "directors", "instagram",
+  "company_opportunities", "academic_opportunities", "department_posts", "directors", "instagram",
 ] as const;
 
 export type ModuleKey = (typeof modules)[number];
@@ -41,6 +41,8 @@ export type StoreProfile = {
   slug: string;
   description?: string;
   whatsapp?: string;
+  phone?: string;
+  email?: string;
   instagram?: string;
   logoUrl?: string;
   coverUrl?: string;
@@ -72,7 +74,10 @@ export type Director = {
   linkedin?: string;
   lattes?: string;
   instagram?: string;
+  userId?: string;
 };
+
+export type CalendarItem = { id:string; title:string; summary?:string; startsAt:string; endsAt?:string; kind:"ufg"|"caecomp"; department?:string; sourceUrl?:string; active:boolean; };
 
 export type SiteSettings = {
   sections: Record<string, boolean>;
@@ -90,6 +95,7 @@ export type PublicData = {
   directors: Director[];
   stores: StoreProfile[];
   photoCampaigns: PhotoCampaign[];
+  calendarItems: CalendarItem[];
 };
 
 export const accessLevels = ["member", "master", "presidency", "supreme"] as const;

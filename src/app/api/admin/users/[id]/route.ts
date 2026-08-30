@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { config } from "@/app/lib/config";
 import { canCreateAccessLevel, canDelegatePermissions, canManageAdmin, currentAdmin, type Admin } from "@/app/lib/auth";
-import { tables, users } from "@/app/lib/appwrite";
+import { Query, tables, users } from "@/app/lib/appwrite";
 import { userUpdateSchema } from "@/app/lib/schemas";
 import { rejectCrossOrigin } from "@/app/lib/security";
 
@@ -43,6 +43,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const target = await targetAdmin(id);
   if (!canManageAdmin(actor, target))
     return NextResponse.json({ error: "A hierarquia desta conta impede excluir esse usuário." }, { status: 403 });
+  const memberships = await tables().listRows({ databaseId: config.databaseId, tableId: "directors", queries: [Query.equal("userId", [target.userId]), Query.limit(100)], total: false });
+  await Promise.all(memberships.rows.map((member) => tables().deleteRow({ databaseId: config.databaseId, tableId: "directors", rowId: member.$id })));
   await tables().deleteRow({ databaseId: config.databaseId, tableId: "administrators", rowId: id });
   await users().delete({ userId: target.userId });
   return NextResponse.json({ ok: true });

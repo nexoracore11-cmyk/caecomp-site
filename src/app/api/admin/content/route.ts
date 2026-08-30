@@ -2,6 +2,7 @@ import { ID } from "node-appwrite";
 import { NextResponse } from "next/server";
 import { config } from "@/app/lib/config";
 import { currentAdmin, can, isMaster } from "@/app/lib/auth";
+import { canManageDepartment } from "@/app/lib/departments";
 import { tables } from "@/app/lib/appwrite";
 import type { Permission } from "@/app/lib/permissions";
 import { rejectCrossOrigin } from "@/app/lib/security";
@@ -11,9 +12,7 @@ const modulePermission: Record<string, Permission> = { news: "news", events: "ev
 function allowed(admin: NonNullable<Awaited<ReturnType<typeof currentAdmin>>>, module: string) {
   return can(admin, modulePermission[module] ?? "site_manage");
 }
-function canApproveStores(admin: NonNullable<Awaited<ReturnType<typeof currentAdmin>>>) {
-  return isMaster(admin) || admin.permissions.includes("stores_approve");
-}
+const paymentPattern = /\b(pix|chave\s+pix|pagamento\s+(por|via)|transfer[eê]ncia\s+banc[aá]ria)\b/i;
 
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOrigin(request); if (crossOrigin) return crossOrigin;
@@ -23,19 +22,19 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Revise os campos, números, datas e links do conteúdo." }, { status: 400 });
   const body = parsed.data;
   if(body.module==="events"&&body.metadata){try{if(!eventMetadataSchema.safeParse(JSON.parse(body.metadata)).success)throw new Error()}catch{return NextResponse.json({error:"Configuração de evento inválida."},{status:400})}}
-  if (!allowed(admin, body.module)) return NextResponse.json({ error: "Sem permissão para este módulo." }, { status: 403 });
+  if (body.module === "department_posts" ? !canManageDepartment(admin, body.category) : !allowed(admin, body.module)) return NextResponse.json({ error: "Sem permissão para este módulo." }, { status: 403 });
   const isStore = body.module === "stores";
   let storeOwnerUserId:string|null=null;
   if(isStore){
+    if(paymentPattern.test([body.title,body.summary,body.content].filter(Boolean).join(" ")))return NextResponse.json({error:"Por segurança, use os contatos da loja para combinar pagamento; não publique Pix ou instruções de pagamento no site."},{status:400});
     if(!body.storeId)return NextResponse.json({error:"Selecione a vendinha deste produto."},{status:400});
     const store=await tables().getRow({databaseId:config.databaseId,tableId:"store_profiles",rowId:body.storeId}).catch(()=>null);
     if(!store)return NextResponse.json({error:"Vendinha não encontrada."},{status:404});
     if(!isMaster(admin)&&store.ownerUserId!==admin.userId)return NextResponse.json({error:"Você só pode cadastrar produtos na sua vendinha."},{status:403});
     storeOwnerUserId=String(store.ownerUserId);
   }
-  const storeApprover = canApproveStores(admin);
   const requestedStatus = String(body.status ?? "draft");
-  const status = isStore && !storeApprover ? "pending" : (["draft", "pending", "published", "rejected", "archived"].includes(requestedStatus) ? requestedStatus : "draft");
+  const status = isStore ? (requestedStatus === "draft" ? "draft" : "published") : (["draft", "pending", "published", "rejected", "archived"].includes(requestedStatus) ? requestedStatus : "draft");
   const data = {
     module: body.module, title: body.title,
     slug: String(body.slug || body.title).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 240) + "-" + Date.now().toString(36),
@@ -51,5 +50,5 @@ export async function POST(request: Request) {
     ...(isStore?{ownerUserId:storeOwnerUserId,ownerName:null,whatsapp:null}:{}),
   };
   const row = await tables().createRow({ databaseId: config.databaseId, tableId: "content_items", rowId: ID.unique(), data });
-  return NextResponse.json({ item: row, message: isStore && status === "pending" ? "Produto enviado para aprovação." : "Conteúdo cadastrado." }, { status: 201 });
+  return NextResponse.json({ item: row, message: "Conteúdo cadastrado." }, { status: 201 });
 }

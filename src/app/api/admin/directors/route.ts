@@ -13,6 +13,6 @@ export async function POST(request: Request) {
   const parsed = directorCreateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Revise os dados do membro e os links informados." }, { status: 400 });
   const data = parsed.data;
-  const row = await tables().createRow({ databaseId: config.databaseId, tableId: "directors", rowId: ID.unique(), data: { ...data, photoUrl: data.photoUrl || null, whatsapp: data.whatsapp || null, linkedin: data.linkedin || null, lattes: data.lattes || null, instagram: data.instagram || null, active: true } });
+  const row = await tables().createRow({ databaseId: config.databaseId, tableId: "directors", rowId: ID.unique(), data: { ...data, userId: data.userId || null, photoUrl: data.photoUrl || null, whatsapp: data.whatsapp || null, linkedin: data.linkedin || null, lattes: data.lattes || null, instagram: data.instagram || null, active: true } });
   return NextResponse.json({ director: row }, { status: 201 });
 }

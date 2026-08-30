@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { config } from "@/app/lib/config";
 import { currentAdmin, can, isMaster } from "@/app/lib/auth";
+import { canManageDepartment } from "@/app/lib/departments";
 import { tables } from "@/app/lib/appwrite";
 import type { Permission } from "@/app/lib/permissions";
 import { rejectCrossOrigin } from "@/app/lib/security";
@@ -8,10 +9,8 @@ import { contentUpdateSchema, eventMetadataSchema } from "@/app/lib/schemas";
 
 const modulePermission: Record<string, Permission> = { news: "news", events: "events", ca_products: "products", stores: "stores", documents: "documents", gallery: "gallery", company_opportunities: "opportunities", academic_opportunities: "academic" };
 type ContentRow = { module: string; ownerUserId?: string; status: string };
+const paymentPattern = /\b(pix|chave\s+pix|pagamento\s+(por|via)|transfer[eê]ncia\s+banc[aá]ria)\b/i;
 
-function canApproveStores(admin: NonNullable<Awaited<ReturnType<typeof currentAdmin>>>) {
-  return isMaster(admin) || admin.permissions.includes("stores_approve");
-}
 function ownsStore(admin: NonNullable<Awaited<ReturnType<typeof currentAdmin>>>, row: ContentRow) {
   return row.ownerUserId === admin.userId && admin.permissions.includes("stores");
 }
@@ -26,30 +25,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
 
   if (current.module === "stores") {
-    const approver = canApproveStores(admin);
     const ownProduct = ownsStore(admin, current);
-    const requestedKeys = Object.keys(body);
-    const statusOnly = requestedKeys.every((key) => key === "status");
-    if (statusOnly) {
-      if (!approver) return NextResponse.json({ error: "Somente masters ou aprovadores autorizados podem aprovar produtos." }, { status: 403 });
-      if (!["pending", "published", "rejected"].includes(String(body.status)))
-        return NextResponse.json({ error: "Status de aprovação inválido." }, { status: 400 });
-      const row = await tables().updateRow({ databaseId: config.databaseId, tableId: "content_items", rowId: id, data: { status: body.status, reviewedBy: admin.userId, reviewedAt: new Date().toISOString() } });
-      return NextResponse.json({ item: row });
-    }
     if (!isMaster(admin) && !ownProduct)
       return NextResponse.json({ error: "Você só pode editar produtos da sua própria vendinha." }, { status: 403 });
     const parsed = contentUpdateSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: "Revise os campos, números e links do produto." }, { status: 400 });
-    const editable = ["title", "summary", "content", "imageUrl", "category", "price", "stockMode", "stockQty", "sortOrder", "metadata"];
+    if(paymentPattern.test([parsed.data.title,parsed.data.summary,parsed.data.content].filter(Boolean).join(" ")))return NextResponse.json({error:"Por segurança, use os contatos da loja para combinar pagamento; não publique Pix ou instruções de pagamento no site."},{status:400});
+    const editable = ["title", "summary", "content", "imageUrl", "category", "price", "stockMode", "stockQty", "sortOrder", "metadata", "status"];
     const data = Object.fromEntries(Object.entries(parsed.data).filter(([key]) => editable.includes(key)));
     if (!Object.keys(data).length) return NextResponse.json({ error: "Nenhum campo editável foi enviado." }, { status: 400 });
-    const requiresReview = !isMaster(admin);
-    const row = await tables().updateRow({ databaseId: config.databaseId, tableId: "content_items", rowId: id, data: { ...data, ...(requiresReview ? { status: "pending", reviewedBy: null, reviewedAt: null } : {}) } });
-    return NextResponse.json({ item: row, message: requiresReview ? "Alterações enviadas para nova aprovação." : "Produto atualizado." });
+    if (data.status && !["draft", "published", "archived"].includes(String(data.status))) return NextResponse.json({ error: "Status inválido." }, { status: 400 });
+    const row = await tables().updateRow({ databaseId: config.databaseId, tableId: "content_items", rowId: id, data });
+    return NextResponse.json({ item: row, message: "Produto atualizado." });
   }
 
-  if (!can(admin, modulePermission[current.module] ?? "site_manage"))
+  if (current.module === "department_posts" ? !canManageDepartment(admin, (current as ContentRow & { category?: string }).category) : !can(admin, modulePermission[current.module] ?? "site_manage"))
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   const parsed = contentUpdateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Revise os campos, números, datas e links do conteúdo." }, { status: 400 });
@@ -69,7 +59,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (current.module === "stores") {
     if (!isMaster(admin) && !ownsStore(admin, current))
       return NextResponse.json({ error: "Você só pode excluir produtos da sua própria vendinha." }, { status: 403 });
-  } else if (!can(admin, modulePermission[current.module] ?? "site_manage")) {
+  } else if (current.module === "department_posts" ? !canManageDepartment(admin, (current as ContentRow & { category?: string }).category) : !can(admin, modulePermission[current.module] ?? "site_manage")) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
   await tables().deleteRow({ databaseId: config.databaseId, tableId: "content_items", rowId: id });

@@ -22,6 +22,7 @@ type Bootstrap = {
   pretinha: Row[];
   stores: Row[];
   campaigns: Row[];
+  calendar: Row[];
   settings: Record<string, unknown> | null;
 };
 const modules = [
@@ -33,6 +34,7 @@ const modules = [
   "gallery",
   "company_opportunities",
   "academic_opportunities",
+  "department_posts",
 ];
 const labels: Record<string, string> = {
   news: "Notícias",
@@ -46,6 +48,7 @@ const labels: Record<string, string> = {
   journal: "Jornal CAECOMP",
   company_opportunities: "Seleções de empresas",
   academic_opportunities: "Oportunidades acadêmicas",
+  department_posts: "Publicações das diretorias",
 };
 
 async function uploadAdminFile(file: File) {
@@ -103,10 +106,11 @@ export function Dashboard() {
   const visibleTabs=new Set(data.admin.mustChangePassword?["profile"]:["overview","profile"]);
   if(!data.admin.mustChangePassword&&hasAny(["news","products","documents","gallery","opportunities","academic"]))visibleTabs.add("content");
   if(!data.admin.mustChangePassword&&hasAny(["events"]))visibleTabs.add("events");
-  if(!data.admin.mustChangePassword&&hasAny(["stores","stores_approve"]))visibleTabs.add("stores");
+  if(!data.admin.mustChangePassword&&hasAny(["stores","stores_manage"]))visibleTabs.add("stores");
   if(!data.admin.mustChangePassword&&hasAny(["presidency","secretary"]))visibleTabs.add("directors");
   if(!data.admin.mustChangePassword&&hasAny(["requests","products","stores","events","opportunities"]))visibleTabs.add("requests");
   if(!data.admin.mustChangePassword&&hasAny(["marketing"]))visibleTabs.add("settings");
+  if(!data.admin.mustChangePassword&&hasAny(["events","products","academic","marketing"]))visibleTabs.add("calendar");
   if(!data.admin.mustChangePassword&&isMaster)visibleTabs.add("pretinha");if(!data.admin.mustChangePassword&&canUsers)visibleTabs.add("users");
   return (
     <div className="admin-shell">
@@ -120,6 +124,7 @@ export function Dashboard() {
             ["overview", "Visão geral"],
             ["content", "Conteúdos"],
             ["events", "Eventos"],
+            ["calendar", "Calendário"],
             ["stores", "Vendinhas"],
             ["directors", "Membros"],
             ["requests", "Solicitações"],
@@ -155,8 +160,9 @@ export function Dashboard() {
         {tab === "overview" && <Overview data={data} />}{" "}
         {tab === "content" && <ContentPanel rows={data.content} admin={data.admin} call={call} />}{" "}
         {tab === "events" && <EventsPanel rows={data.content.filter(row=>row.module==="events")} call={call} />}{" "}
+        {tab === "calendar" && <CalendarPanel rows={data.calendar} call={call} />}{" "}
         {tab === "stores" && <StoresPanel stores={data.stores} products={data.content.filter(row=>row.module==="stores")} users={data.users} admin={data.admin} call={call} />}{" "}
-        {tab === "directors" && <Directors rows={data.directors} call={call} />}{" "}
+        {tab === "directors" && <Directors rows={data.directors} users={data.users} call={call} />}{" "}
         {tab === "requests" && <Requests rows={data.requests} call={call} />}{" "}
         {tab === "pretinha" && isMaster && <PretinhaPanel rows={data.pretinha} campaigns={data.campaigns} admin={data.admin} call={call} />}{" "}
         {tab === "settings" && (
@@ -236,9 +242,8 @@ function ContentPanel({
   const [open, setOpen] = useState(false);
   const [selectedModule, setSelectedModule] = useState("news");
   const master = ["master", "presidency", "supreme"].includes(admin.accessLevel);
-  const canApproveStores = master || admin.permissions.includes("stores_approve");
   const modulePermissions:Record<string,string>={news:"news",events:"events",ca_products:"products",stores:"stores",documents:"documents",gallery:"gallery",company_opportunities:"opportunities",academic_opportunities:"academic"};
-  const availableModules=modules.filter((module)=>!['events','stores'].includes(module)&&(master||admin.permissions.includes("site_manage")||admin.permissions.includes(modulePermissions[module])));
+  const availableModules=modules.filter((module)=>!['events','stores'].includes(module)&&(module==="department_posts"?master||["presidency","secretary","treasury","academic","events","marketing","products"].some(permission=>admin.permissions.includes(permission)):master||admin.permissions.includes("site_manage")||admin.permissions.includes(modulePermissions[module])));
   const activeModule=availableModules.includes(selectedModule)?selectedModule:(availableModules[0]??"");
   const statusLabels: Record<string, string> = { draft: "Rascunho", pending: "Aguardando aprovação", published: "Publicado", rejected: "Não aprovado", archived: "Arquivado" };
   async function editStore(row: Row) {
@@ -252,6 +257,7 @@ function ContentPanel({
     if (stockQty === null) return;
     await call(`/api/admin/content/${row.$id}`, "PATCH", { title, summary, price: price ? Number(price) : null, stockMode: stockQty ? "limited" : "unlimited", stockQty: stockQty ? Number(stockQty) : null });
   }
+  async function editContent(row:Row){const title=prompt("Título:",String(row.title||""));if(title===null)return;const summary=prompt("Resumo:",String(row.summary||""));if(summary===null)return;const content=prompt("Texto (opcional):",String(row.content||""));if(content===null)return;await call(`/api/admin/content/${row.$id}`,"PATCH",{title,summary,content});}
   async function submit(f: FormData) {
     const body = Object.fromEntries(f.entries());
     const file = f.get("file");
@@ -300,10 +306,10 @@ function ContentPanel({
             Resumo
             <textarea name="summary" required rows={3} />
           </label>
-          {activeModule === "stores" && !canApproveStores ? <div className="approval-notice"><strong>Enviado para aprovação</strong><span>O produto só aparecerá no site após um master ou aprovador autorizado liberar.</span><input type="hidden" name="status" value="pending" /></div> : <label>Status<select name="status"><option value="draft">Rascunho</option>{activeModule === "stores" && <option value="pending">Aguardando aprovação</option>}<option value="published">Publicado</option>{activeModule === "stores" && <option value="rejected">Não aprovado</option>}</select></label>}
+          <label>Status<select name="status"><option value="draft">Rascunho</option><option value="published">Publicado</option></select></label>
           <label>
             Categoria
-            <input name="category" />
+            {activeModule==="department_posts"?<select name="category"><option>Presidência</option><option>Secretaria</option><option>Tesouraria</option><option>Diretoria Acadêmica</option><option>Diretoria de Eventos</option><option>Diretoria de Marketing</option><option>Diretoria de Produtos</option></select>:<input name="category" />}
           </label>
           <label>
             Imagem (URL)
@@ -370,7 +376,7 @@ function ContentPanel({
               <small>{statusLabels[String(r.status)] ?? String(r.status)}</small>
             </div>
             <div>
-              {r.module === "stores" && (master || (r.ownerUserId === admin.userId && admin.permissions.includes("stores"))) && <button onClick={() => void editStore(r)}>Editar</button>}
+              {(r.module === "stores" ? (master || (r.ownerUserId === admin.userId && admin.permissions.includes("stores"))) : true) && <button onClick={() => r.module === "stores" ? void editStore(r) : void editContent(r)}>Editar</button>}
               {r.module === "ca_products" && r.stockMode === "limited" && (
                 <button
                   disabled={Number(r.stockQty) <= 0}
@@ -383,16 +389,15 @@ function ContentPanel({
                   Venda −1 ({String(r.stockQty ?? 0)})
                 </button>
               )}
-              {(r.module !== "stores" || canApproveStores) && <button
+              {(r.module !== "stores" || master || (r.ownerUserId===admin.userId&&admin.permissions.includes("stores"))) && <button
                 onClick={() =>
                   call(`/api/admin/content/${r.$id}`, "PATCH", {
-                    status: r.status === "published" ? (r.module === "stores" ? "pending" : "draft") : "published",
+                    status: r.status === "published" ? "draft" : "published",
                   })
                 }
               >
-                {r.status === "published" ? "Retirar do site" : r.module === "stores" ? "Aprovar" : "Publicar"}
+                {r.status === "published" ? "Retirar do site" : "Publicar"}
               </button>}
-              {r.module === "stores" && canApproveStores && r.status !== "rejected" && <button onClick={() => call(`/api/admin/content/${r.$id}`, "PATCH", { status: "rejected" })}>Não aprovar</button>}
               {(r.module !== "stores" || master || (r.ownerUserId === admin.userId && admin.permissions.includes("stores"))) && <button
                 className="danger"
                 onClick={() =>
@@ -422,10 +427,12 @@ function EventsPanel({rows,call}:{rows:Row[];call:(u:string,m:string,b?:unknown)
   return <div><div className="admin-title row"><div><span className="kicker">Agenda completa</span><h2>Eventos</h2></div><button className="button primary" onClick={()=>setOpen(!open)}>Novo evento</button></div>{open&&<form action={submit} className="admin-form"><label>Título<input name="title" required/></label><label>Resumo<textarea name="summary" required/></label><label className="full">Descrição<textarea name="content" rows={5}/></label><label>Status no site<select name="status"><option value="draft">Rascunho</option><option value="published">Publicado</option></select></label><label>Inscrições<select name="registrationStatus"><option value="open">Abertas</option><option value="closed">Encerradas</option><option value="sold_out">Esgotadas</option></select></label><label>Início<input name="startAt" type="datetime-local" required/></label><label>Fim<input name="endAt" type="datetime-local"/></label><label>Local<input name="location"/></label><label>Tipo<select name="isFree"><option value="true">Gratuito</option><option value="false">Pago</option></select></label><label>Capacidade<select name="capacityMode"><option value="unlimited">Ilimitada</option><option value="limited">Limitada</option></select></label><label>Quantidade de vagas<input name="capacityQty" type="number" min="0"/></label><label className="full">Link de inscrição<input name="registrationUrl" type="url"/></label><label>Cartaz<input name="poster" type="file" accept="image/jpeg,image/png,image/webp"/></label><label>Segunda imagem<input name="infoImage" type="file" accept="image/jpeg,image/png,image/webp"/></label><label className="full">Lotes (um por linha: Nome | valor | open/closed/sold_out)<textarea name="lots" rows={4} placeholder="1º lote | 15,00 | open"/></label><label className="full">Aviso de mudança<textarea name="changeNotice" placeholder="Só preencha quando houver uma alteração importante."/></label><label className="full">Fotos/vídeos pós-evento (uma URL por linha)<textarea name="postEventMedia"/></label><button className="button primary">Salvar evento</button></form>}<div className="admin-table">{rows.map(row=><article key={row.$id}><div><span>Evento</span><strong>{String(row.title)}</strong><small>{row.startAt?new Date(String(row.startAt)).toLocaleString("pt-BR"):"Sem data"} · {String(row.status)}</small></div><div><button onClick={()=>void updateEvent(row)}>Inscrições e mudanças</button><button onClick={()=>call(`/api/admin/content/${row.$id}`,"PATCH",{status:row.status==="published"?"draft":"published"})}>{row.status==="published"?"Retirar do site":"Publicar"}</button></div></article>)}</div></div>
 }
 
+function CalendarPanel({rows,call}:{rows:Row[];call:(u:string,m:string,b?:unknown)=>Promise<boolean>}){const [open,setOpen]=useState(false);async function submit(form:FormData){const body=Object.fromEntries(form.entries());if(await call("/api/admin/calendar","POST",body))setOpen(false)}return <div><div className="admin-title row"><div><span className="kicker">Agenda compartilhada</span><h2>Calendário</h2></div><button className="button primary" onClick={()=>setOpen(!open)}>Adicionar data</button></div>{open&&<form action={submit} className="admin-form"><label>Título<input name="title" required/></label><label>Tipo<select name="kind"><option value="caecomp">CAECOMP</option><option value="ufg">UFG</option></select></label><label>Início<input name="startsAt" type="datetime-local" required/></label><label>Fim<input name="endsAt" type="datetime-local"/></label><label>Diretoria (opcional)<input name="department"/></label><label>Fonte/link (opcional)<input name="sourceUrl" type="url"/></label><label className="full">Descrição<textarea name="summary"/></label><button className="button primary">Salvar data</button></form>}<div className="admin-table">{rows.map(row=><article key={row.$id}><div><span>{String(row.kind)==="ufg"?"UFG":String(row.department||"CAECOMP")}</span><strong>{String(row.title)}</strong><small>{new Date(String(row.startsAt)).toLocaleString("pt-BR")}</small></div><div><button className="danger" onClick={()=>confirm("Excluir esta data?")&&call(`/api/admin/calendar/${row.$id}`,"DELETE")}>Excluir</button></div></article>)}</div></div>}
+
 function StoresPanel({stores,products,users,admin,call}:{stores:Row[];products:Row[];users:Row[];admin:Admin;call:(u:string,m:string,b?:unknown)=>Promise<boolean>}){
- const [newStore,setNewStore]=useState(false);const [newProduct,setNewProduct]=useState(false);const master=["master","presidency","supreme"].includes(admin.accessLevel);const canApprove=master||admin.permissions.includes("stores_approve");const canManageOwn=master||admin.permissions.includes("stores");
+ const [newStore,setNewStore]=useState(false);const [newProduct,setNewProduct]=useState(false);const master=["master","presidency","supreme"].includes(admin.accessLevel);const canManageStores=master||admin.permissions.includes("stores_manage");const canApprove=false;const canManageOwn=master||admin.permissions.includes("stores");
  async function createStore(f:FormData){const body=Object.fromEntries(f.entries()) as Record<string,unknown>;for(const key of ["logo","cover"]){const file=f.get(key);if(file instanceof File&&file.size){try{body[key==="logo"?"logoUrl":"coverUrl"]=await uploadAdminFile(file)}catch(error){alert(error instanceof Error?error.message:"Falha no envio.");return}}delete body[key]}body.active=true;body.approved=true;if(await call("/api/admin/stores","POST",body))setNewStore(false)}
- async function createProduct(f:FormData){const body=Object.fromEntries(f.entries()) as Record<string,unknown>;const image=f.get("image");if(image instanceof File&&image.size){try{body.imageUrl=await uploadAdminFile(image)}catch(error){alert(error instanceof Error?error.message:"Falha no envio.");return}}delete body.image;body.module="stores";body.status=master?String(body.status||"pending"):"pending";body.stockMode=body.stockQty?"limited":"unlimited";if(await call("/api/admin/content","POST",body))setNewProduct(false)}
+ async function createProduct(f:FormData){if(!confirm("Por segurança, não publique Pix ou instruções de pagamento. Combine qualquer pagamento apenas pelos contatos da vendinha. Continuar?"))return;const body=Object.fromEntries(f.entries()) as Record<string,unknown>;const image=f.get("image");if(image instanceof File&&image.size){try{body.imageUrl=await uploadAdminFile(image)}catch(error){alert(error instanceof Error?error.message:"Falha no envio.");return}}delete body.image;body.module="stores";body.status=String(body.status||"published");body.stockMode=body.stockMode==="limited"?"limited":"unlimited";if(await call("/api/admin/content","POST",body))setNewProduct(false)}
  async function editStore(row:Row){const name=prompt("Nome da vendinha:",String(row.name||""));if(!name)return;const description=prompt("Descrição:",String(row.description||""));if(description===null)return;const whatsapp=prompt("WhatsApp:",String(row.whatsapp||""));if(whatsapp===null)return;await call(`/api/admin/stores/${row.$id}`,"PATCH",{name,description,whatsapp})}
  async function editProduct(row:Row){const title=prompt("Produto:",String(row.title||""));if(!title)return;const summary=prompt("Descrição:",String(row.summary||""));if(summary===null)return;const price=prompt("Preço:",String(row.price||""));if(price===null)return;const stock=prompt("Estoque (vazio = ilimitado):",String(row.stockQty||""));if(stock===null)return;await call(`/api/admin/content/${row.$id}`,"PATCH",{title,summary,price:price?Number(price):null,stockMode:stock?"limited":"unlimited",stockQty:stock?Number(stock):null})}
  return <div><div className="admin-title row"><div><span className="kicker">Lojas virtuais</span><h2>Vendinhas</h2></div><div>{master&&<button className="button" onClick={()=>setNewStore(!newStore)}>Cadastrar vendinha</button>}{canManageOwn&&<button className="button primary" disabled={!stores.length} onClick={()=>setNewProduct(!newProduct)}>Novo produto</button>}</div></div>{newStore&&<form action={createStore} className="admin-form"><label>Nome<input name="name" required/></label><label>Responsável<select name="ownerUserId" required><option value="">Selecione</option>{users.filter(u=>Array.isArray(u.permissions)&&u.permissions.includes("stores")).map(u=><option value={String(u.userId)} key={u.$id}>{String(u.name)} · {String(u.email)}</option>)}</select></label><label className="full">Descrição<textarea name="description"/></label><label>WhatsApp<input name="whatsapp"/></label><label>Instagram oficial<input name="instagram" type="url"/></label><label>Logo<input name="logo" type="file" accept="image/jpeg,image/png,image/webp"/></label><label>Imagem de capa (opcional)<input name="cover" type="file" accept="image/jpeg,image/png,image/webp"/></label><button className="button primary">Criar vendinha</button></form>}{newProduct&&<form action={createProduct} className="admin-form"><label>Vendinha<select name="storeId" required>{stores.map(s=><option value={s.$id} key={s.$id}>{String(s.name)}</option>)}</select></label><label>Produto<input name="title" required/></label><label className="full">Descrição<textarea name="summary" required/></label><label>Preço<input name="price" type="number" step="0.01"/></label><label>Estoque (vazio = ilimitado)<input name="stockQty" type="number" min="0"/></label><label>Imagem<input name="image" type="file" accept="image/jpeg,image/png,image/webp"/></label>{master&&<label>Status<select name="status"><option value="pending">Aguardar aprovação</option><option value="published">Publicar agora</option></select></label>}<button className="button primary">Salvar produto</button></form>}<div className="admin-card"><h3>Minhas lojas e lojas cadastradas</h3><div className="admin-table">{stores.map(store=><article key={store.$id}><div><span>{store.approved?"Aprovada":"Aguardando aprovação"}</span><strong>{String(store.name)}</strong><small>{String(store.whatsapp||"Sem WhatsApp")}</small></div><div>{(master||store.ownerUserId===admin.userId)&&<button onClick={()=>void editStore(store)}>Editar loja</button>}{master&&<button onClick={()=>call(`/api/admin/stores/${store.$id}`,"PATCH",{approved:!store.approved})}>{store.approved?"Suspender":"Aprovar"}</button>}</div></article>)}</div></div><div className="admin-card"><h3>Produtos</h3><div className="admin-table">{products.map(row=><article key={row.$id}><div><span>{String(row.status)}</span><strong>{String(row.title)}</strong><small>{String(stores.find(s=>s.$id===row.storeId)?.name||"Vendinha")}</small></div><div>{(master||row.ownerUserId===admin.userId)&&<button onClick={()=>void editProduct(row)}>Editar</button>}{canApprove&&<button onClick={()=>call(`/api/admin/content/${row.$id}`,"PATCH",{status:row.status==="published"?"pending":"published"})}>{row.status==="published"?"Retirar":"Aprovar"}</button>}{(master||row.ownerUserId===admin.userId)&&<button className="danger" onClick={()=>confirm("Excluir produto?")&&call(`/api/admin/content/${row.$id}`,"DELETE")}>Excluir</button>}</div></article>)}</div></div></div>
@@ -433,12 +440,15 @@ function StoresPanel({stores,products,users,admin,call}:{stores:Row[];products:R
 
 function Directors({
   rows,
+  users,
   call,
 }: {
   rows: Row[];
+  users: Row[];
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
+  const [preview, setPreview] = useState("");
   async function submit(form: FormData) {
     const body = Object.fromEntries(form.entries());
     const file = form.get("photo");
@@ -494,13 +504,18 @@ function Directors({
             </select>
           </label>
           <label>
+            Vincular ao usuário (opcional)
+            <select name="userId"><option value="">Sem vínculo</option>{users.map(user=><option key={user.$id} value={String(user.userId)}>{String(user.name)} · {String(user.email)}</option>)}</select>
+          </label>
+          <label>
             Foto (URL)
             <input name="photoUrl" />
           </label>
           <label>
             Ou enviar foto
-            <input name="photo" type="file" accept="image/jpeg,image/png,image/webp" />
+            <input name="photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event)=>{const file=event.currentTarget.files?.[0];setPreview(file?URL.createObjectURL(file):"");}} />
           </label>
+          {preview&&<img className="director-photo" src={preview} alt="Prévia da foto do membro" />}
           <label>
             WhatsApp (opcional)
             <input name="whatsapp" />

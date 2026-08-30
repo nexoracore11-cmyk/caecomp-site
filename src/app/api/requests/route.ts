@@ -6,7 +6,7 @@ import { requestSchema } from "@/app/lib/schemas";
 import { clientFingerprint, rejectCrossOrigin } from "@/app/lib/security";
 
 type RequestedItem = { module: string; status: string; stockMode?: string; stockQty?: number; capacityMode?: string; capacityQty?: number };
-const compatibleModules: Record<string, string[]> = { product: ["ca_products"], store: ["stores"], event: ["events"], opportunity: ["company_opportunities", "academic_opportunities"] };
+const compatibleModules: Record<string, string[]> = { product: ["ca_products"], store: ["stores"], opportunity: ["company_opportunities", "academic_opportunities"] };
 
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOrigin(request); if (crossOrigin) return crossOrigin;
@@ -18,8 +18,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Este item não está disponível para solicitações." }, { status: 409 });
     if ((parsed.data.kind === "product" || parsed.data.kind === "store") && item.stockMode === "limited" && parsed.data.quantity > Number(item.stockQty ?? 0))
       return NextResponse.json({ error: "A quantidade solicitada supera o estoque disponível." }, { status: 409 });
-    if (parsed.data.kind === "event" && item.capacityMode === "limited" && parsed.data.quantity > Number(item.capacityQty ?? 0))
-      return NextResponse.json({ error: "A quantidade solicitada supera as vagas disponíveis." }, { status: 409 });
     const submissionKey = clientFingerprint(request);
     const recent = await tables().listRows({ databaseId: config.databaseId, tableId: "requests", queries: [Query.equal("submissionKey", [submissionKey]), Query.orderDesc("submittedAt"), Query.limit(10)], total: false });
     const oneHourAgo = Date.now() - 60 * 60 * 1000;
