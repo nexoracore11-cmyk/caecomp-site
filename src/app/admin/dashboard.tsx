@@ -73,6 +73,11 @@ export function Dashboard() {
   const [data, setData] = useState<Bootstrap | null>(null);
   const [tab, setTab] = useState("overview");
   const [message, setMessage] = useState("");
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => setMessage(""), 15_000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
   async function load() {
     const r = await fetch("/api/admin/bootstrap");
     if (r.ok) { const next=await r.json(); setData(next); if(next.admin.mustChangePassword)setTab("profile"); }
