@@ -66,7 +66,13 @@ try {
 
   const routes = ["/", "/noticias", "/eventos", "/eventos/jornada-stack", "/produtos", "/vendinhas", "/oportunidades", "/documentos", "/documentos/matriz-curricular-pdf", "/galeria", "/olhares", "/olhares/pretinha", "/pretinha", "/sobre", "/admin/login"];
   const results = [];
-  for (const viewport of [{ name: "desktop", width: 1440, height: 1000, mobile: false }, { name: "mobile", width: 390, height: 844, mobile: true }]) {
+  for (const viewport of [
+    { name: "small-mobile", width: 320, height: 568, mobile: true },
+    { name: "mobile", width: 390, height: 844, mobile: true },
+    { name: "tablet-portrait", width: 768, height: 1024, mobile: true },
+    { name: "tablet-landscape", width: 1024, height: 768, mobile: false },
+    { name: "desktop", width: 1440, height: 1000, mobile: false },
+  ]) {
     await command("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 1, mobile: viewport.mobile });
     for (const route of routes) {
       const loaded = waitEvent("Page.loadEventFired");
