@@ -5,6 +5,8 @@ import { tables, users } from "@/app/lib/appwrite";
 import { currentAdmin, isMaster } from "@/app/lib/auth";
 import { userCreateSchema } from "@/app/lib/schemas";
 import { rejectCrossOrigin } from "@/app/lib/security";
+import { sectionEnabled } from "@/app/lib/module-visibility";
+import { getCurrentSections } from "@/app/lib/site-settings";
 
 /** Creates only a basic vendinha account; it cannot be used to create staff. */
 export async function POST(request: Request) {
@@ -12,6 +14,8 @@ export async function POST(request: Request) {
   const admin = await currentAdmin();
   if (!admin || (!isMaster(admin) && !admin.permissions.includes("stores_users")))
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+  if (!sectionEnabled(await getCurrentSections(), "stores"))
+    return NextResponse.json({ error: "Vendinhas estão desativadas nas configurações do site." }, { status: 409 });
   const parsed = userCreateSchema.pick({ name: true, email: true, password: true }).safeParse(await request.json().catch(() => null));
   if (!parsed.success)
     return NextResponse.json({ error: "Use uma senha de ao menos 8 caracteres, com maiúscula, minúscula e número." }, { status: 400 });

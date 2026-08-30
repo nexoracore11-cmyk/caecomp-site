@@ -4,6 +4,8 @@ import { Query, tables } from "@/app/lib/appwrite";
 import { config } from "@/app/lib/config";
 import { requestSchema } from "@/app/lib/schemas";
 import { clientFingerprint, consumeRateLimit, rejectCrossOrigin } from "@/app/lib/security";
+import { moduleEnabled } from "@/app/lib/module-visibility";
+import { getCurrentSections } from "@/app/lib/site-settings";
 
 type RequestedItem = { module: string; status: string; stockMode?: string; stockQty?: number; capacityMode?: string; capacityQty?: number };
 const compatibleModules: Record<string, string[]> = { product: ["ca_products"], store: ["stores"], opportunity: ["company_opportunities", "academic_opportunities"] };
@@ -19,6 +21,8 @@ export async function POST(request: Request) {
     const item = await tables().getRow({ databaseId: config.databaseId, tableId: "content_items", rowId: parsed.data.itemId }) as unknown as RequestedItem;
     if (item.status !== "published" || !compatibleModules[parsed.data.kind]?.includes(item.module))
       return NextResponse.json({ error: "Este item não está disponível para solicitações." }, { status: 409 });
+    if (!moduleEnabled(await getCurrentSections(), item.module))
+      return NextResponse.json({ error: "Esta área não está disponível no momento." }, { status: 409 });
     if ((parsed.data.kind === "product" || parsed.data.kind === "store") && item.stockMode === "limited" && parsed.data.quantity > Number(item.stockQty ?? 0))
       return NextResponse.json({ error: "A quantidade solicitada supera o estoque disponível." }, { status: 409 });
     const submissionKey = clientFingerprint(request);

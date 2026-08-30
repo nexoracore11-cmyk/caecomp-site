@@ -6,6 +6,8 @@ import { tables } from "@/app/lib/appwrite";
 import type { Permission } from "@/app/lib/permissions";
 import { rejectCrossOrigin } from "@/app/lib/security";
 import { contentUpdateSchema, eventMetadataSchema } from "@/app/lib/schemas";
+import { moduleEnabled } from "@/app/lib/module-visibility";
+import { getCurrentSections } from "@/app/lib/site-settings";
 
 const modulePermission: Record<string, Permission> = { news: "news", events: "events", ca_products: "products", stores: "stores", documents: "documents", gallery: "gallery", company_opportunities: "opportunities", academic_opportunities: "academic" };
 type ContentRow = { module: string; ownerUserId?: string; status: string };
@@ -21,6 +23,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!admin) return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   const { id } = await params;
   const current = await tables().getRow({ databaseId: config.databaseId, tableId: "content_items", rowId: id }) as unknown as ContentRow;
+  if (!moduleEnabled(await getCurrentSections(), current.module))
+    return NextResponse.json({ error: "Este módulo está desativado nas configurações do site." }, { status: 409 });
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
 
@@ -56,6 +60,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (!admin) return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   const { id } = await params;
   const current = await tables().getRow({ databaseId: config.databaseId, tableId: "content_items", rowId: id }) as unknown as ContentRow;
+  if (!moduleEnabled(await getCurrentSections(), current.module))
+    return NextResponse.json({ error: "Este módulo está desativado nas configurações do site." }, { status: 409 });
   if (current.module === "stores") {
     if (!isMaster(admin) && !ownsStore(admin, current))
       return NextResponse.json({ error: "Você só pode excluir produtos da sua própria vendinha." }, { status: 403 });

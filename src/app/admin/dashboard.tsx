@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { permissionOptions } from "@/app/lib/permissions";
+import { moduleEnabled, permissionEnabled, sectionEnabled } from "@/app/lib/module-visibility";
 type Row = Record<string, unknown> & { $id: string };
 type Admin = {
   userId: string;
@@ -107,19 +108,22 @@ export function Dashboard() {
   }
   if (!data) return <div className="admin-loading">Carregando painel...</div>;
   const isMaster = ["master", "presidency", "supreme"].includes(data.admin.accessLevel);
+  const sections = (data.settings?.sections as Record<string, boolean>) ?? {};
+  const sectionIsOn = (key:string) => sectionEnabled(sections, key);
+  const requestsAreRelevant = ["ca_products", "stores", "events", "company_opportunities", "academic_opportunities"].some(sectionIsOn);
   const canUsers = isMaster || data.admin.permissions.includes("users_manage");
-  const canCreateStoreUsers = isMaster || data.admin.permissions.includes("stores_users");
+  const canCreateStoreUsers = sectionIsOn("stores") && (isMaster || data.admin.permissions.includes("stores_users"));
   const hasAny=(permissions:string[])=>isMaster||data.admin.permissions.includes("site_manage")||permissions.some((permission)=>data.admin.permissions.includes(permission));
   const visibleTabs=new Set(data.admin.mustChangePassword?["profile"]:["overview","profile"]);
-  if(!data.admin.mustChangePassword&&hasAny(["news","products","documents","gallery","opportunities","academic"]))visibleTabs.add("content");
-  if(!data.admin.mustChangePassword&&hasAny(["events"]))visibleTabs.add("events");
-  if(!data.admin.mustChangePassword&&hasAny(["stores","stores_manage"]))visibleTabs.add("stores");
+  if(!data.admin.mustChangePassword&&["news","ca_products","documents","gallery","company_opportunities","academic_opportunities","departments"].some(sectionIsOn)&&hasAny(["news","products","documents","gallery","opportunities","academic","presidency","secretary","treasury","events","marketing"]))visibleTabs.add("content");
+  if(!data.admin.mustChangePassword&&sectionIsOn("events")&&hasAny(["events"]))visibleTabs.add("events");
+  if(!data.admin.mustChangePassword&&sectionIsOn("stores")&&hasAny(["stores","stores_manage"]))visibleTabs.add("stores");
   if(!data.admin.mustChangePassword&&canCreateStoreUsers)visibleTabs.add("store-users");
-  if(!data.admin.mustChangePassword&&hasAny(["presidency","secretary"]))visibleTabs.add("directors");
-  if(!data.admin.mustChangePassword&&hasAny(["requests","products","stores","events","opportunities"]))visibleTabs.add("requests");
+  if(!data.admin.mustChangePassword&&sectionIsOn("directors")&&hasAny(["presidency","secretary"]))visibleTabs.add("directors");
+  if(!data.admin.mustChangePassword&&requestsAreRelevant&&hasAny(["requests","products","stores","events","opportunities"]))visibleTabs.add("requests");
   if(!data.admin.mustChangePassword&&hasAny(["marketing"]))visibleTabs.add("settings");
-  if(!data.admin.mustChangePassword&&hasAny(["events","products","academic","marketing"]))visibleTabs.add("calendar");
-  if(!data.admin.mustChangePassword&&isMaster)visibleTabs.add("pretinha");if(!data.admin.mustChangePassword&&canUsers)visibleTabs.add("users");
+  if(!data.admin.mustChangePassword&&sectionIsOn("calendar")&&hasAny(["events","products","academic","marketing"]))visibleTabs.add("calendar");
+  if(!data.admin.mustChangePassword&&sectionIsOn("photo_initiatives")&&isMaster)visibleTabs.add("pretinha");if(!data.admin.mustChangePassword&&canUsers)visibleTabs.add("users");
   return (
     <div className="admin-shell">
       <aside className="admin-sidebar">
@@ -167,7 +171,7 @@ export function Dashboard() {
         </header>
         {message && <div className="admin-message">{message}</div>}
         {tab === "overview" && <Overview data={data} />}{" "}
-        {tab === "content" && <ContentPanel rows={data.content} admin={data.admin} call={call} />}{" "}
+        {tab === "content" && <ContentPanel rows={data.content} admin={data.admin} sections={sections} call={call} />}{" "}
         {tab === "events" && <EventsPanel rows={data.content.filter(row=>row.module==="events")} call={call} />}{" "}
         {tab === "calendar" && <CalendarPanel rows={data.calendar} call={call} />}{" "}
         {tab === "stores" && <StoresPanel stores={data.stores} products={data.content.filter(row=>row.module==="stores")} users={data.users} admin={data.admin} call={call} />}{" "}
@@ -182,6 +186,7 @@ export function Dashboard() {
           <UsersPanel
             rows={data.users}
             actorLevel={data.admin.accessLevel}
+            sections={sections}
             call={call}
           />
         )}{" "}
@@ -243,17 +248,19 @@ function Overview({ data }: { data: Bootstrap }) {
 function ContentPanel({
   rows,
   admin,
+  sections,
   call,
 }: {
   rows: Row[];
   admin: Admin;
+  sections: Record<string, boolean>;
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedModule, setSelectedModule] = useState("news");
   const master = ["master", "presidency", "supreme"].includes(admin.accessLevel);
   const modulePermissions:Record<string,string>={news:"news",events:"events",ca_products:"products",stores:"stores",documents:"documents",gallery:"gallery",company_opportunities:"opportunities",academic_opportunities:"academic"};
-  const availableModules=modules.filter((module)=>!['events','stores'].includes(module)&&(module==="department_posts"?master||["presidency","secretary","treasury","academic","events","marketing","products"].some(permission=>admin.permissions.includes(permission)):master||admin.permissions.includes("site_manage")||admin.permissions.includes(modulePermissions[module])));
+  const availableModules=modules.filter((module)=>moduleEnabled(sections,module)&&!['events','stores'].includes(module)&&(module==="department_posts"?master||["presidency","secretary","treasury","academic","events","marketing","products"].some(permission=>admin.permissions.includes(permission)):master||admin.permissions.includes("site_manage")||admin.permissions.includes(modulePermissions[module])));
   const activeModule=availableModules.includes(selectedModule)?selectedModule:(availableModules[0]??"");
   const statusLabels: Record<string, string> = { draft: "Rascunho", pending: "Aguardando aprovação", published: "Publicado", rejected: "Não aprovado", archived: "Arquivado" };
   async function editStore(row: Row) {
@@ -766,10 +773,12 @@ function Settings({
 function UsersPanel({
   rows,
   actorLevel,
+  sections,
   call,
 }: {
   rows: Row[];
   actorLevel: "member" | "master" | "presidency" | "supreme";
+  sections: Record<string, boolean>;
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
@@ -826,7 +835,7 @@ function UsersPanel({
           <fieldset>
             <legend>Permissões</legend>
             <div className="permission-grid">
-              {permissionOptions.map(([key, label]) => (
+              {permissionOptions.filter(([key]) => permissionEnabled(sections, key)).map(([key, label]) => (
                 <label key={key}>
                   <input type="checkbox" name="permissions" value={key} />
                   {label}
@@ -842,7 +851,7 @@ function UsersPanel({
         if (await call(`/api/admin/users/${editingPermissions.$id}`, "PATCH", { permissions })) setEditingPermissions(null);
       }} className="admin-form">
         <div className="form-heading"><strong>Permissões de {String(editingPermissions.name)}</strong><span>Marque “Aprovar produtos de vendinhas” somente para quem poderá liberar produtos no site.</span></div>
-        <fieldset><legend>Permissões</legend><div className="permission-grid">{permissionOptions.map(([key, label]) => <label key={key}><input type="checkbox" name="permissions" value={key} defaultChecked={Array.isArray(editingPermissions.permissions) && editingPermissions.permissions.includes(key)} />{label}</label>)}</div></fieldset>
+        <fieldset><legend>Permissões</legend><div className="permission-grid">{permissionOptions.filter(([key]) => permissionEnabled(sections, key)).map(([key, label]) => <label key={key}><input type="checkbox" name="permissions" value={key} defaultChecked={Array.isArray(editingPermissions.permissions) && editingPermissions.permissions.includes(key)} />{label}</label>)}</div></fieldset>
         <button className="button primary">Salvar permissões</button><button type="button" className="button" onClick={() => setEditingPermissions(null)}>Cancelar</button>
       </form>}
       <div className="admin-table">

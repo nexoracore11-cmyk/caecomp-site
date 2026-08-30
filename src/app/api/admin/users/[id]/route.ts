@@ -4,6 +4,8 @@ import { canCreateAccessLevel, canDelegatePermissions, canManageAdmin, currentAd
 import { Query, tables, users } from "@/app/lib/appwrite";
 import { userUpdateSchema } from "@/app/lib/schemas";
 import { rejectCrossOrigin } from "@/app/lib/security";
+import { permissionEnabled } from "@/app/lib/module-visibility";
+import { getCurrentSections } from "@/app/lib/site-settings";
 
 async function targetAdmin(id: string) {
   const row = await tables().getRow({ databaseId: config.databaseId, tableId: "administrators", rowId: id });
@@ -21,6 +23,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "A hierarquia desta conta impede alterar esse usuário." }, { status: 403 });
   const parsed = userUpdateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
+  const sections = await getCurrentSections();
+  if (parsed.data.permissions?.some((permission) => !permissionEnabled(sections, permission)))
+    return NextResponse.json({ error: "Uma das permissões selecionadas pertence a um módulo desativado." }, { status: 409 });
   const { password, email, name, accessLevel, ...rowData } = parsed.data;
   if (password && actor.accessLevel !== "supreme")
     return NextResponse.json({ error: "Somente o Master Supremo redefine senhas de outras contas." }, { status: 403 });

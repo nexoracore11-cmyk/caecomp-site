@@ -377,7 +377,7 @@ const settings = {
     stores: true,
     documents: true,
     gallery: true,
-    pretinha: true,
+    pretinha: false,
     company_opportunities: true,
     academic_opportunities: true,
     directors: true,
@@ -410,7 +410,7 @@ if (!settingRows.rows.length)
   });
 else {
   const currentSettings = JSON.parse(String(settingRows.rows[0].value));
-  const missingSections={...(currentSettings.sections?.pretinha===undefined?{pretinha:true}:{}),...(currentSettings.sections?.photo_initiatives===undefined?{photo_initiatives:true}:{}),...(currentSettings.sections?.journal===undefined?{journal:true}:{}),...(currentSettings.sections?.departments===undefined?{departments:true}:{}),...(currentSettings.sections?.calendar===undefined?{calendar:true}:{})};
+  const missingSections={...(currentSettings.sections?.pretinha!==false?{pretinha:false}:{}),...(currentSettings.sections?.photo_initiatives===undefined?{photo_initiatives:true}:{}),...(currentSettings.sections?.journal===undefined?{journal:true}:{}),...(currentSettings.sections?.departments===undefined?{departments:true}:{}),...(currentSettings.sections?.calendar===undefined?{calendar:true}:{})};
   const legacyAbout="O CAECOMP representa os estudantes de Engenharia de Computação e cria pontes com projetos, empresas e oportunidades.";
   const shouldRefreshCopy=currentSettings.aboutText===legacyAbout||currentSettings.aboutTitle==="Somos a voz de quem constrói o futuro";
   if (Object.keys(missingSections).length||shouldRefreshCopy)
@@ -446,6 +446,9 @@ for(const photo of legacyPhotos.rows) if(!photo.campaignId) await tables.updateR
 
 const workshopRows=await tables.listRows({databaseId,tableId:"content_items",queries:[Query.equal("slug",["workshop-github-2026"]),Query.limit(1)],total:false});
 if(!workshopRows.rows.length)await tables.createRow({databaseId,tableId:"content_items",rowId:ID.unique(),data:{module:"events",title:"Workshop GitHub",slug:"workshop-github-2026",summary:"Uma manhã de aplicação prática de conceitos de Git e GitHub com Gustavo Ferreira.",content:"Aprenda na prática conceitos de Git e GitHub com Gustavo Ferreira.\nO palestrante é especialista em Engenharia de Dados, trabalha com Python, MySQL, AWS e ETL, também atua com MLOps, Django, FastAPI e projetos no CEIA.\nHaverá coffee break após o evento. As vagas são limitadas.",imageUrl:"/event-media/workshop-github-1.webp",category:"Workshop",status:"published",startAt:"2026-09-03T09:00:00-03:00",endAt:"2026-09-03T12:00:00-03:00",location:"Auditório Professor Biolkino Pereira — EMC/UFG",price:0,capacityMode:"limited",ctaLabel:"Fazer inscrição",ctaUrl:"https://docs.google.com/forms/d/e/1FAIpQLSfPa3kIHE6PMDZ4kBE8Rl7k3M4C2l-kgEhJsHTJoXa0YUqXVA/viewform",sortOrder:0,metadata:JSON.stringify({registrationStatus:"open",changeNotice:"",isFree:true,lots:[{name:"Inscrição geral",price:0,status:"open"}],media:["/event-media/workshop-github-1.webp","/event-media/workshop-github-2.webp"],postEventMedia:[],registrationUrl:"https://docs.google.com/forms/d/e/1FAIpQLSfPa3kIHE6PMDZ4kBE8Rl7k3M4C2l-kgEhJsHTJoXa0YUqXVA/viewform",sourceUrl:"https://www.instagram.com/p/DceRLWmm4EV/"})}});
+
+const eloGroupRows=await tables.listRows({databaseId,tableId:"content_items",queries:[Query.equal("slug",["ps-elogroup-2026-2"]),Query.limit(1)],total:false});
+if(!eloGroupRows.rows.length)await tables.createRow({databaseId,tableId:"content_items",rowId:ID.unique(),data:{module:"company_opportunities",title:"Processo Seletivo EloGroup 2026.2",slug:"ps-elogroup-2026-2",summary:"Inscrições abertas para Consultoria de Gestão, Dados e Analytics e Tecnologia.",content:"A EloGroup é uma consultoria de transformação de negócios que reúne estratégia, tecnologia e IA para resolver problemas complexos.\n\nO processo seletivo oferece trilhas em Consultoria de Gestão, Dados e Analytics e Tecnologia. A divulgação recebida pelo CAECOMP informa prioridade de inscrição para estudantes até 03/09; a abertura ao público geral está prevista para 08/09.",category:"Processo seletivo",status:"published",startAt:"2026-08-20T00:00:00-03:00",endAt:"2026-09-03T23:59:59-03:00",ctaLabel:"Acessar inscrição",ctaUrl:"https://linktr.ee/PS26.2_Elogroup",sortOrder:0}});
 
 if(process.env.CAECOMP_PRESIDENCY_PASSWORD){
  const presidencyFound=await users.list({queries:[Query.equal("email",["cawemufg@gmail.com"])],total:false});

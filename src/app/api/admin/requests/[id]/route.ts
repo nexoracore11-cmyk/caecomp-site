@@ -5,10 +5,12 @@ import { tables } from "@/app/lib/appwrite";
 import type { Permission } from "@/app/lib/permissions";
 import { requestUpdateSchema } from "@/app/lib/schemas";
 import { rejectCrossOrigin } from "@/app/lib/security";
+import { moduleEnabled } from "@/app/lib/module-visibility";
+import { getCurrentSections } from "@/app/lib/site-settings";
 
 const kindPermission: Record<string, Permission> = { product: "products", event: "events", opportunity: "opportunities" };
 type RequestRow = { itemId: string; kind: string };
-type ItemRow = { ownerUserId?: string };
+type ItemRow = { ownerUserId?: string; module: string };
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const crossOrigin = rejectCrossOrigin(request); if (crossOrigin) return crossOrigin;
@@ -18,9 +20,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!parsed.success) return NextResponse.json({ error: "Status ou observação inválidos." }, { status: 400 });
   const { id } = await params;
   const current = await tables().getRow({ databaseId: config.databaseId, tableId: "requests", rowId: id }) as unknown as RequestRow;
+  const item = await tables().getRow({ databaseId: config.databaseId, tableId: "content_items", rowId: current.itemId }) as unknown as ItemRow;
+  if (!moduleEnabled(await getCurrentSections(), item.module)) return NextResponse.json({ error: "A área desta solicitação está desativada." }, { status: 409 });
   let authorized = isMaster(admin) || can(admin, "requests");
   if (!authorized && current.kind === "store") {
-    const item = await tables().getRow({ databaseId: config.databaseId, tableId: "content_items", rowId: current.itemId }) as unknown as ItemRow;
     authorized = admin.permissions.includes("stores") && item.ownerUserId === admin.userId;
   } else if (!authorized) {
     authorized = can(admin, kindPermission[current.kind] ?? "requests");

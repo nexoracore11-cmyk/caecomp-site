@@ -7,6 +7,8 @@ import { tables } from "@/app/lib/appwrite";
 import type { Permission } from "@/app/lib/permissions";
 import { rejectCrossOrigin } from "@/app/lib/security";
 import { contentCreateSchema, eventMetadataSchema } from "@/app/lib/schemas";
+import { moduleEnabled } from "@/app/lib/module-visibility";
+import { getCurrentSections } from "@/app/lib/site-settings";
 
 const modulePermission: Record<string, Permission> = { news: "news", events: "events", ca_products: "products", stores: "stores", documents: "documents", gallery: "gallery", company_opportunities: "opportunities", academic_opportunities: "academic" };
 function allowed(admin: NonNullable<Awaited<ReturnType<typeof currentAdmin>>>, module: string) {
@@ -21,6 +23,8 @@ export async function POST(request: Request) {
   const parsed = contentCreateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Revise os campos, números, datas e links do conteúdo." }, { status: 400 });
   const body = parsed.data;
+  if (!moduleEnabled(await getCurrentSections(), body.module))
+    return NextResponse.json({ error: "Este módulo está desativado nas configurações do site." }, { status: 409 });
   if(body.module==="events"&&body.metadata){try{if(!eventMetadataSchema.safeParse(JSON.parse(body.metadata)).success)throw new Error()}catch{return NextResponse.json({error:"Configuração de evento inválida."},{status:400})}}
   if (body.module === "department_posts" ? !canManageDepartment(admin, body.category) : !allowed(admin, body.module)) return NextResponse.json({ error: "Sem permissão para este módulo." }, { status: 403 });
   const isStore = body.module === "stores";

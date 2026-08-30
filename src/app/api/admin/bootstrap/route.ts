@@ -4,6 +4,7 @@ import { currentAdmin, isMaster } from "@/app/lib/auth";
 import { canManageCalendar, canManageDepartment } from "@/app/lib/departments";
 import { Query, tables } from "@/app/lib/appwrite";
 import type { Permission } from "@/app/lib/permissions";
+import { moduleEnabled, sectionEnabled } from "@/app/lib/module-visibility";
 
 export async function GET() {
   const admin = await currentAdmin();
@@ -21,7 +22,9 @@ export async function GET() {
     canManageCalendar(admin) ? tables().listRows({databaseId:config.databaseId,tableId:"calendar_items",queries:[Query.orderAsc("startsAt"),Query.limit(500)],total:false}) : Promise.resolve({rows:[]}),
   ]);
   const modulePermission: Record<string, Permission> = { news: "news", events: "events", ca_products: "products", documents: "documents", gallery: "gallery", company_opportunities: "opportunities", academic_opportunities: "academic" };
+  const sections = (() => { try { return JSON.parse(String(settings.rows[0]?.value ?? "{}")).sections ?? {}; } catch { return {}; } })();
   const visibleContent = content.rows.filter((row) => {
+    if (!moduleEnabled(sections, String(row.module))) return false;
     if (isMaster(admin) || admin.permissions.includes("site_manage")) return true;
     if (row.module === "stores") {
       return admin.permissions.includes("stores") && row.ownerUserId === admin.userId;
@@ -33,14 +36,15 @@ export async function GET() {
   const contentById = new Map(content.rows.map((row) => [row.$id, row]));
   const requestPermission: Record<string, Permission> = { product: "products", event: "events", opportunity: "opportunities" };
   const visibleRequests = requests.rows.filter((row) => {
+    const item = contentById.get(String(row.itemId));
+    if (!item || !moduleEnabled(sections, String(item.module))) return false;
     if (isMaster(admin) || admin.permissions.includes("site_manage") || admin.permissions.includes("requests")) return true;
     if (row.kind === "store") {
-      const item = contentById.get(String(row.itemId));
       return admin.permissions.includes("stores") && item?.ownerUserId === admin.userId;
     }
     const permission = requestPermission[String(row.kind)];
     return Boolean(permission && admin.permissions.includes(permission));
   });
-  const visibleStores=(isMaster(admin)||admin.permissions.includes("stores_manage"))?stores.rows:stores.rows.filter((row)=>row.ownerUserId===admin.userId);
-  return NextResponse.json({ admin, content: visibleContent, requests: visibleRequests, directors: directors.rows, users: admins.rows, pretinha: pretinha.rows, stores:visibleStores, campaigns:campaigns.rows, calendar:calendar.rows, settings: settings.rows[0] ? JSON.parse(String(settings.rows[0].value)) : null, settingsId: settings.rows[0]?.$id });
+  const visibleStores=!sectionEnabled(sections,"stores")?[]:(isMaster(admin)||admin.permissions.includes("stores_manage"))?stores.rows:stores.rows.filter((row)=>row.ownerUserId===admin.userId);
+  return NextResponse.json({ admin, content: visibleContent, requests: visibleRequests, directors: sectionEnabled(sections,"directors")?directors.rows:[], users: admins.rows, pretinha: sectionEnabled(sections,"photo_initiatives")?pretinha.rows:[], stores:visibleStores, campaigns:sectionEnabled(sections,"photo_initiatives")?campaigns.rows:[], calendar:sectionEnabled(sections,"calendar")?calendar.rows:[], settings: settings.rows[0] ? JSON.parse(String(settings.rows[0].value)) : null, settingsId: settings.rows[0]?.$id });
 }

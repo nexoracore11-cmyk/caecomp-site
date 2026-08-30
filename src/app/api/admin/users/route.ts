@@ -5,6 +5,8 @@ import { tables, users } from "@/app/lib/appwrite";
 import { canCreateAccessLevel, canDelegatePermissions, currentAdmin, isMaster } from "@/app/lib/auth";
 import { userCreateSchema } from "@/app/lib/schemas";
 import { rejectCrossOrigin } from "@/app/lib/security";
+import { permissionEnabled } from "@/app/lib/module-visibility";
+import { getCurrentSections } from "@/app/lib/site-settings";
 
 export async function GET() {
   const admin = await currentAdmin();
@@ -22,6 +24,9 @@ export async function POST(request: Request) {
   const parsed = userCreateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success)
     return NextResponse.json({ error: "Revise os dados, o nível e as permissões." }, { status: 400 });
+  const sections = await getCurrentSections();
+  if (parsed.data.permissions.some((permission) => !permissionEnabled(sections, permission)))
+    return NextResponse.json({ error: "Uma das permissões selecionadas pertence a um módulo desativado." }, { status: 409 });
   if (!canCreateAccessLevel(admin, parsed.data.accessLevel))
     return NextResponse.json({ error: "Sua conta não pode criar um usuário nesse nível." }, { status: 403 });
   if (!canDelegatePermissions(admin, parsed.data.permissions))
