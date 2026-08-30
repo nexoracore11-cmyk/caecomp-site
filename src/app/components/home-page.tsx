@@ -130,7 +130,7 @@ export function HomePage({ data }: { data: PublicData }) {
             {by(data, "news")
               .slice(0, 3)
               .map((item) => (
-                <ContentCard key={item.id} item={item} />
+                <ContentCard key={item.id} item={item} href={`/eventos/${item.slug}`} />
               ))}
           </div>
         </section>

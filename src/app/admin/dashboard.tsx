@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { permissionOptions } from "@/app/lib/permissions";
 import { moduleEnabled, permissionEnabled, sectionEnabled } from "@/app/lib/module-visibility";
+import { saoPauloDateTimeInput } from "@/app/lib/date-time";
 type Row = Record<string, unknown> & { $id: string };
 type Admin = {
   userId: string;
@@ -446,7 +447,7 @@ function EventsPanel({rows,call}:{rows:Row[];call:(u:string,m:string,b?:unknown)
 
 function EventEditor({row,call,onClose}:{row:Row;call:(u:string,m:string,b?:unknown)=>Promise<boolean>;onClose:()=>void}){
   let meta:Record<string,unknown>={};try{meta=JSON.parse(String(row.metadata||"{}"))}catch{}
-  const localDate=(value:unknown)=>{if(!value)return "";const date=new Date(String(value));if(Number.isNaN(date.getTime()))return "";return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16)};
+  const localDate=saoPauloDateTimeInput;
   async function submit(form:FormData){
     const media=String(form.get("media")||"").split("\n").map(value=>value.trim()).filter(Boolean);
     try{for(const key of ["poster","additionalImage"]){const file=form.get(key);if(file instanceof File&&file.size)media.push(await uploadAdminFile(file));}}catch(error){alert(error instanceof Error?error.message:"Falha no envio das imagens.");return}

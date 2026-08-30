@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { canApproveStore, canCreateLevel, canEditStore, canGrantPermissions, canManageTarget } from "../src/app/lib/access-policy.ts";
+import { saoPauloDateTimeInput, saoPauloLocalToIso } from "../src/app/lib/date-time.ts";
 
 const actor = (accessLevel: "member"|"master"|"presidency"|"supreme", permissions: string[] = []) => ({ userId: accessLevel, isOwner: accessLevel === "supreme", accessLevel, permissions });
 
@@ -28,4 +29,10 @@ test("aprovação de vendinha é separada da edição", () => {
   assert.equal(canEditStore(approver, "seller"), false);
   assert.equal(canEditStore(seller, "member"), true);
   assert.equal(canApproveStore(seller), false);
+});
+
+test("horário de Goiânia não perde três horas ao salvar e reabrir", () => {
+  const stored = saoPauloLocalToIso("2026-09-03T09:00");
+  assert.equal(stored, "2026-09-03T12:00:00.000Z");
+  assert.equal(saoPauloDateTimeInput(stored), "2026-09-03T09:00");
 });

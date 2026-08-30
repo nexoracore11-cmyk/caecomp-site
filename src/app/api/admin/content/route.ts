@@ -9,6 +9,7 @@ import { rejectCrossOrigin } from "@/app/lib/security";
 import { contentCreateSchema, eventMetadataSchema } from "@/app/lib/schemas";
 import { moduleEnabled } from "@/app/lib/module-visibility";
 import { getCurrentSections } from "@/app/lib/site-settings";
+import { saoPauloLocalToIso } from "@/app/lib/date-time";
 
 const modulePermission: Record<string, Permission> = { news: "news", events: "events", ca_products: "products", stores: "stores", documents: "documents", gallery: "gallery", company_opportunities: "opportunities", academic_opportunities: "academic" };
 function allowed(admin: NonNullable<Awaited<ReturnType<typeof currentAdmin>>>, module: string) {
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
     module: body.module, title: body.title,
     slug: String(body.slug || body.title).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 240) + "-" + Date.now().toString(36),
     summary: body.summary, content: body.content || null, imageUrl: body.imageUrl || null, documentUrl: body.documentUrl || null, category: body.category || null,
-    status, startAt: body.startAt ? new Date(body.startAt).toISOString() : null, endAt: body.endAt ? new Date(body.endAt).toISOString() : null, location: body.location || null, price: body.price ?? null,
+    status, startAt: body.startAt ? saoPauloLocalToIso(body.startAt) : null, endAt: body.endAt ? saoPauloLocalToIso(body.endAt) : null, location: body.location || null, price: body.price ?? null,
     stockMode: body.stockMode || null, stockQty: body.stockQty ?? null, capacityMode: body.capacityMode || null, capacityQty: body.capacityQty ?? null,
     ctaLabel: body.ctaLabel || null, ctaUrl: body.ctaUrl || null, ownerName: body.ownerName || null, whatsapp: body.whatsapp || null, sortOrder: body.sortOrder,
     ownerUserId: isStore ? admin.userId : null,

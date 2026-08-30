@@ -4,6 +4,7 @@ import { currentAdmin, isMaster } from "@/app/lib/auth";
 import { tables } from "@/app/lib/appwrite";
 import { photoCampaignUpdateSchema } from "@/app/lib/schemas";
 import { rejectCrossOrigin } from "@/app/lib/security";
+import { saoPauloLocalToIso } from "@/app/lib/date-time";
 
 export async function PATCH(request:Request,{params}:{params:Promise<{id:string}>}){
   const cross=rejectCrossOrigin(request);if(cross)return cross;
@@ -13,7 +14,7 @@ export async function PATCH(request:Request,{params}:{params:Promise<{id:string}
   const nextStatus=parsed.data.status;
   if(nextStatus&&["closed","archived"].includes(nextStatus)&&admin.accessLevel!=="supreme")return NextResponse.json({error:"Somente o Master Supremo pode encerrar ou arquivar envios."},{status:403});
   if(String(current.status)==="closed"&&nextStatus==="open"&&admin.accessLevel!=="supreme")return NextResponse.json({error:"Somente o Master Supremo pode reabrir envios encerrados."},{status:403});
-  const data=Object.fromEntries(Object.entries(parsed.data).map(([key,value])=>[key,(key==="startsAt"||key==="endsAt")&&value?new Date(String(value)).toISOString():value===""?null:value]));
+  const data=Object.fromEntries(Object.entries(parsed.data).map(([key,value])=>[key,(key==="startsAt"||key==="endsAt")&&value?saoPauloLocalToIso(String(value)):value===""?null:value]));
   const row=await tables().updateRow({databaseId:config.databaseId,tableId:"photo_campaigns",rowId:(await params).id,data});
   return NextResponse.json({campaign:row});
 }

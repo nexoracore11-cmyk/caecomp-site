@@ -6,6 +6,7 @@ import { canManageCalendar } from "@/app/lib/departments";
 import { tables } from "@/app/lib/appwrite";
 import { calendarItemSchema } from "@/app/lib/schemas";
 import { rejectCrossOrigin } from "@/app/lib/security";
+import { saoPauloLocalToIso } from "@/app/lib/date-time";
 
 export async function POST(request: Request) {
   const cross = rejectCrossOrigin(request); if (cross) return cross;
@@ -14,6 +15,6 @@ export async function POST(request: Request) {
   const parsed = calendarItemSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Revise os dados da data." }, { status: 400 });
   const body = parsed.data;
-  const row = await tables().createRow({ databaseId: config.databaseId, tableId: "calendar_items", rowId: ID.unique(), data: { ...body, summary: body.summary || null, endsAt: body.endsAt ? new Date(body.endsAt).toISOString() : null, startsAt: new Date(body.startsAt).toISOString(), department: body.department || null, sourceUrl: body.sourceUrl || null, createdBy: admin.userId } });
+  const row = await tables().createRow({ databaseId: config.databaseId, tableId: "calendar_items", rowId: ID.unique(), data: { ...body, summary: body.summary || null, endsAt: body.endsAt ? saoPauloLocalToIso(body.endsAt) : null, startsAt: saoPauloLocalToIso(body.startsAt), department: body.department || null, sourceUrl: body.sourceUrl || null, createdBy: admin.userId } });
   return NextResponse.json({ item: row }, { status: 201 });
 }
