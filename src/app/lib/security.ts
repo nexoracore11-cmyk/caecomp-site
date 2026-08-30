@@ -1,6 +1,26 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
+type RateLimitWindow = { count: number; resetAt: number };
+const rateLimitWindows = new Map<string, RateLimitWindow>();
+
+/**
+ * A short, in-process burst limit. Route handlers keep their durable Appwrite
+ * limits as well; this intentionally stops repeated requests before parsing a
+ * body or uploading a file.
+ */
+export function consumeRateLimit(key: string, limit: number, windowMs: number) {
+  const now = Date.now();
+  const current = rateLimitWindows.get(key);
+  if (!current || current.resetAt <= now) {
+    rateLimitWindows.set(key, { count: 1, resetAt: now + windowMs });
+    return { allowed: true, retryAfter: 0 };
+  }
+  current.count += 1;
+  if (current.count <= limit) return { allowed: true, retryAfter: 0 };
+  return { allowed: false, retryAfter: Math.max(1, Math.ceil((current.resetAt - now) / 1000)) };
+}
+
 export function rejectCrossOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin) return null;

@@ -16,7 +16,7 @@ export default async function ContentDetail({ params }: { params: Promise<{ slug
   const data=await getPublicData();const item = data.content.find((content) => content.slug === slug);
   if (!item) notFound();
   if(data.settings.sections[item.module]===false)notFound();
-  const requestKind = item.module === "events" ? "event" : item.module === "company_opportunities" || item.module === "academic_opportunities" ? "opportunity" : null;
+  const requestKind = item.module === "company_opportunities" || item.module === "academic_opportunities" ? "opportunity" : null;
   return <>
     <section className="page-hero"><span className="kicker light">{item.category ?? "CAECOMP"}</span><h1>{item.title}</h1><p>{item.summary}</p></section>
     <article className="page-content content-detail">
@@ -26,7 +26,7 @@ export default async function ContentDetail({ params }: { params: Promise<{ slug
       <div className="detail-actions">
         {item.documentUrl && <a className="button primary" href={item.documentUrl} target="_blank" rel="noopener noreferrer">Abrir documento</a>}
         {item.ctaUrl && <a className="button primary" href={item.ctaUrl} target="_blank" rel="noopener noreferrer">{item.ctaLabel || "Acessar"}</a>}
-        {requestKind && <RequestForm itemId={item.id} kind={requestKind} label={requestKind === "event" ? "Solicitar inscrição" : "Tenho interesse"} />}
+        {requestKind && <RequestForm itemId={item.id} kind={requestKind} label="Tenho interesse" />}
       </div>
     </article>
   </>;

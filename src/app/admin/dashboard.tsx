@@ -49,6 +49,12 @@ const labels: Record<string, string> = {
   company_opportunities: "Seleções de empresas",
   academic_opportunities: "Oportunidades acadêmicas",
   department_posts: "Publicações das diretorias",
+  directors: "Membros atuais",
+  departments: "Diretorias",
+  calendar: "Calendário",
+  instagram: "Instagram",
+  about: "Quem somos",
+  history: "Nossa história",
 };
 
 async function uploadAdminFile(file: File) {
@@ -102,11 +108,13 @@ export function Dashboard() {
   if (!data) return <div className="admin-loading">Carregando painel...</div>;
   const isMaster = ["master", "presidency", "supreme"].includes(data.admin.accessLevel);
   const canUsers = isMaster || data.admin.permissions.includes("users_manage");
+  const canCreateStoreUsers = isMaster || data.admin.permissions.includes("stores_users");
   const hasAny=(permissions:string[])=>isMaster||data.admin.permissions.includes("site_manage")||permissions.some((permission)=>data.admin.permissions.includes(permission));
   const visibleTabs=new Set(data.admin.mustChangePassword?["profile"]:["overview","profile"]);
   if(!data.admin.mustChangePassword&&hasAny(["news","products","documents","gallery","opportunities","academic"]))visibleTabs.add("content");
   if(!data.admin.mustChangePassword&&hasAny(["events"]))visibleTabs.add("events");
   if(!data.admin.mustChangePassword&&hasAny(["stores","stores_manage"]))visibleTabs.add("stores");
+  if(!data.admin.mustChangePassword&&canCreateStoreUsers)visibleTabs.add("store-users");
   if(!data.admin.mustChangePassword&&hasAny(["presidency","secretary"]))visibleTabs.add("directors");
   if(!data.admin.mustChangePassword&&hasAny(["requests","products","stores","events","opportunities"]))visibleTabs.add("requests");
   if(!data.admin.mustChangePassword&&hasAny(["marketing"]))visibleTabs.add("settings");
@@ -126,6 +134,7 @@ export function Dashboard() {
             ["events", "Eventos"],
             ["calendar", "Calendário"],
             ["stores", "Vendinhas"],
+            ["store-users", "Usuários de vendinhas"],
             ["directors", "Membros"],
             ["requests", "Solicitações"],
             ["pretinha", "Olhares CAECOMP"],
@@ -162,6 +171,7 @@ export function Dashboard() {
         {tab === "events" && <EventsPanel rows={data.content.filter(row=>row.module==="events")} call={call} />}{" "}
         {tab === "calendar" && <CalendarPanel rows={data.calendar} call={call} />}{" "}
         {tab === "stores" && <StoresPanel stores={data.stores} products={data.content.filter(row=>row.module==="stores")} users={data.users} admin={data.admin} call={call} />}{" "}
+        {tab === "store-users" && canCreateStoreUsers && <StoreUsersPanel call={call} />}{" "}
         {tab === "directors" && <Directors rows={data.directors} users={data.users} call={call} />}{" "}
         {tab === "requests" && <Requests rows={data.requests} call={call} />}{" "}
         {tab === "pretinha" && isMaster && <PretinhaPanel rows={data.pretinha} campaigns={data.campaigns} admin={data.admin} call={call} />}{" "}
@@ -416,6 +426,7 @@ function ContentPanel({
 }
 function EventsPanel({rows,call}:{rows:Row[];call:(u:string,m:string,b?:unknown)=>Promise<boolean>}){
   const [open,setOpen]=useState(false);
+  const [editing,setEditing]=useState<Row|null>(null);
   async function submit(f:FormData){
     const poster=f.get("poster");const info=f.get("infoImage");const media:string[]=[];
     try{if(poster instanceof File&&poster.size)media.push(await uploadAdminFile(poster));if(info instanceof File&&info.size)media.push(await uploadAdminFile(info));}catch(error){alert(error instanceof Error?error.message:"Falha no envio das imagens.");return}
@@ -423,14 +434,34 @@ function EventsPanel({rows,call}:{rows:Row[];call:(u:string,m:string,b?:unknown)
     const body={module:"events",title:String(f.get("title")),summary:String(f.get("summary")),content:String(f.get("content")||""),status:String(f.get("status")||"draft"),startAt:String(f.get("startAt")||""),endAt:String(f.get("endAt")||""),location:String(f.get("location")||""),capacityMode:String(f.get("capacityMode")||"unlimited"),capacityQty:String(f.get("capacityQty")||""),ctaLabel:"Fazer inscrição",ctaUrl:String(f.get("registrationUrl")||""),imageUrl:media[0]||"",metadata:JSON.stringify({registrationStatus:String(f.get("registrationStatus")||"open"),changeNotice:String(f.get("changeNotice")||""),isFree:f.get("isFree")==="true",lots,media,postEventMedia:String(f.get("postEventMedia")||"").split("\n").map(v=>v.trim()).filter(Boolean),registrationUrl:String(f.get("registrationUrl")||"")})};
     if(await call("/api/admin/content","POST",body))setOpen(false);
   }
-  async function updateEvent(row:Row){let meta:Record<string,unknown>={};try{meta=JSON.parse(String(row.metadata||"{}"))}catch{}const registrationStatus=prompt("Status das inscrições: open, closed ou sold_out",String(meta.registrationStatus||"open"));if(!registrationStatus)return;const changeNotice=prompt("Aviso de mudança (vazio para nenhum):",String(meta.changeNotice||""));if(changeNotice===null)return;await call(`/api/admin/content/${row.$id}`,"PATCH",{metadata:JSON.stringify({...meta,registrationStatus,changeNotice})});}
-  return <div><div className="admin-title row"><div><span className="kicker">Agenda completa</span><h2>Eventos</h2></div><button className="button primary" onClick={()=>setOpen(!open)}>Novo evento</button></div>{open&&<form action={submit} className="admin-form"><label>Título<input name="title" required/></label><label>Resumo<textarea name="summary" required/></label><label className="full">Descrição<textarea name="content" rows={5}/></label><label>Status no site<select name="status"><option value="draft">Rascunho</option><option value="published">Publicado</option></select></label><label>Inscrições<select name="registrationStatus"><option value="open">Abertas</option><option value="closed">Encerradas</option><option value="sold_out">Esgotadas</option></select></label><label>Início<input name="startAt" type="datetime-local" required/></label><label>Fim<input name="endAt" type="datetime-local"/></label><label>Local<input name="location"/></label><label>Tipo<select name="isFree"><option value="true">Gratuito</option><option value="false">Pago</option></select></label><label>Capacidade<select name="capacityMode"><option value="unlimited">Ilimitada</option><option value="limited">Limitada</option></select></label><label>Quantidade de vagas<input name="capacityQty" type="number" min="0"/></label><label className="full">Link de inscrição<input name="registrationUrl" type="url"/></label><label>Cartaz<input name="poster" type="file" accept="image/jpeg,image/png,image/webp"/></label><label>Segunda imagem<input name="infoImage" type="file" accept="image/jpeg,image/png,image/webp"/></label><label className="full">Lotes (um por linha: Nome | valor | open/closed/sold_out)<textarea name="lots" rows={4} placeholder="1º lote | 15,00 | open"/></label><label className="full">Aviso de mudança<textarea name="changeNotice" placeholder="Só preencha quando houver uma alteração importante."/></label><label className="full">Fotos/vídeos pós-evento (uma URL por linha)<textarea name="postEventMedia"/></label><button className="button primary">Salvar evento</button></form>}<div className="admin-table">{rows.map(row=><article key={row.$id}><div><span>Evento</span><strong>{String(row.title)}</strong><small>{row.startAt?new Date(String(row.startAt)).toLocaleString("pt-BR"):"Sem data"} · {String(row.status)}</small></div><div><button onClick={()=>void updateEvent(row)}>Inscrições e mudanças</button><button onClick={()=>call(`/api/admin/content/${row.$id}`,"PATCH",{status:row.status==="published"?"draft":"published"})}>{row.status==="published"?"Retirar do site":"Publicar"}</button></div></article>)}</div></div>
+  return <div><div className="admin-title row"><div><span className="kicker">Agenda completa</span><h2>Eventos</h2></div><button className="button primary" onClick={()=>{setEditing(null);setOpen(!open)}}>Novo evento</button></div>{editing&&<EventEditor row={editing} call={call} onClose={()=>setEditing(null)}/>} {open&&!editing&&<form action={submit} className="admin-form"><label>Título<input name="title" required/></label><label>Resumo<textarea name="summary" required/></label><label className="full">Descrição<textarea name="content" rows={5}/></label><label>Status no site<select name="status"><option value="draft">Rascunho</option><option value="published">Publicado</option></select></label><label>Inscrições<select name="registrationStatus"><option value="open">Abertas</option><option value="closed">Encerradas</option><option value="sold_out">Esgotadas</option></select></label><label>Início<input name="startAt" type="datetime-local" required/></label><label>Fim<input name="endAt" type="datetime-local"/></label><label>Local<input name="location"/></label><label>Tipo<select name="isFree"><option value="true">Gratuito</option><option value="false">Pago</option></select></label><label>Capacidade<select name="capacityMode"><option value="unlimited">Ilimitada</option><option value="limited">Limitada</option></select></label><label>Quantidade de vagas<input name="capacityQty" type="number" min="0"/></label><label className="full">Link do formulário de inscrição<input name="registrationUrl" type="url"/></label><label>Cartaz<input name="poster" type="file" accept="image/jpeg,image/png,image/webp"/></label><label>Segunda imagem<input name="infoImage" type="file" accept="image/jpeg,image/png,image/webp"/></label><label className="full">Lotes (um por linha: Nome | valor | open/closed/sold_out)<textarea name="lots" rows={4} placeholder="1º lote | 15,00 | open"/></label><label className="full">Aviso de mudança<textarea name="changeNotice" placeholder="Só preencha quando houver uma alteração importante."/></label><label className="full">Fotos/vídeos pós-evento (uma URL por linha)<textarea name="postEventMedia"/></label><button className="button primary">Salvar evento</button></form>}<div className="admin-table">{rows.map(row=><article key={row.$id}><div><span>Evento</span><strong>{String(row.title)}</strong><small>{row.startAt?new Date(String(row.startAt)).toLocaleString("pt-BR"):"Sem data"} · {String(row.status)}</small></div><div><button onClick={()=>{setOpen(false);setEditing(row)}}>Abrir e editar</button><button onClick={()=>call(`/api/admin/content/${row.$id}`,"PATCH",{status:row.status==="published"?"draft":"published"})}>{row.status==="published"?"Retirar do site":"Publicar"}</button></div></article>)}</div></div>
+}
+
+function EventEditor({row,call,onClose}:{row:Row;call:(u:string,m:string,b?:unknown)=>Promise<boolean>;onClose:()=>void}){
+  let meta:Record<string,unknown>={};try{meta=JSON.parse(String(row.metadata||"{}"))}catch{}
+  const localDate=(value:unknown)=>{if(!value)return "";const date=new Date(String(value));if(Number.isNaN(date.getTime()))return "";return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16)};
+  async function submit(form:FormData){
+    const media=String(form.get("media")||"").split("\n").map(value=>value.trim()).filter(Boolean);
+    try{for(const key of ["poster","additionalImage"]){const file=form.get(key);if(file instanceof File&&file.size)media.push(await uploadAdminFile(file));}}catch(error){alert(error instanceof Error?error.message:"Falha no envio das imagens.");return}
+    const lots=String(form.get("lots")||"").split("\n").map(line=>line.trim()).filter(Boolean).map(line=>{const [name,price,status]=line.split("|").map(value=>value.trim());return {name,price:price?Number(price.replace(",",".")):0,status:["open","closed","sold_out"].includes(status)?status:"open"}});
+    const body={title:String(form.get("title")),summary:String(form.get("summary")),content:String(form.get("content")||""),status:String(form.get("status")),startAt:String(form.get("startAt")),endAt:String(form.get("endAt")||""),location:String(form.get("location")||""),capacityMode:String(form.get("capacityMode")),capacityQty:String(form.get("capacityQty")||""),ctaLabel:"Inscrição pelo formulário",ctaUrl:String(form.get("registrationUrl")||""),imageUrl:media[0]||String(row.imageUrl||""),metadata:JSON.stringify({registrationStatus:String(form.get("registrationStatus")),changeNotice:String(form.get("changeNotice")||""),isFree:form.get("isFree")==="true",lots,media,postEventMedia:String(form.get("postEventMedia")||"").split("\n").map(value=>value.trim()).filter(Boolean),registrationUrl:String(form.get("registrationUrl")||"")})};
+    if(await call(`/api/admin/content/${row.$id}`,"PATCH",body))onClose();
+  }
+  const lots=Array.isArray(meta.lots)?meta.lots.map((lot:unknown)=>{const value=lot as {name?:string;price?:number;status?:string};return `${value.name||""} | ${value.price??""} | ${value.status||"open"}`}).join("\n"):"";
+  const media=Array.isArray(meta.media)?meta.media.map(String).join("\n"):String(row.imageUrl||"");
+  return <form action={submit} className="admin-form"><div className="form-heading"><strong>Editar evento</strong><span>Atualize todas as informações, a disponibilidade e as imagens. A inscrição permanece somente no formulário externo.</span></div><label>Título<input name="title" defaultValue={String(row.title||"")} required/></label><label>Resumo<textarea name="summary" defaultValue={String(row.summary||"")} required/></label><label className="full">Descrição<textarea name="content" rows={6} defaultValue={String(row.content||"")}/></label><label>Status no site<select name="status" defaultValue={String(row.status||"draft")}><option value="draft">Rascunho</option><option value="published">Publicado</option></select></label><label>Inscrições<select name="registrationStatus" defaultValue={String(meta.registrationStatus||"open")}><option value="open">Abertas</option><option value="closed">Encerradas</option><option value="sold_out">Esgotadas</option></select></label><label>Início<input name="startAt" type="datetime-local" defaultValue={localDate(row.startAt)} required/></label><label>Fim<input name="endAt" type="datetime-local" defaultValue={localDate(row.endAt)}/></label><label>Local<input name="location" defaultValue={String(row.location||"")}/></label><label>Tipo<select name="isFree" defaultValue={meta.isFree===false?"false":"true"}><option value="true">Gratuito</option><option value="false">Pago</option></select></label><label>Capacidade<select name="capacityMode" defaultValue={String(row.capacityMode||"unlimited")}><option value="unlimited">Ilimitada</option><option value="limited">Limitada</option></select></label><label>Quantidade de vagas<input name="capacityQty" type="number" min="0" defaultValue={String(row.capacityQty||"")}/></label><label className="full">Link do formulário de inscrição<input name="registrationUrl" type="url" defaultValue={String(meta.registrationUrl||row.ctaUrl||"")}/></label><label className="full">Imagens do evento (uma URL por linha; mantém o tamanho completo)<textarea name="media" rows={4} defaultValue={media}/></label><label>Acrescentar cartaz<input name="poster" type="file" accept="image/jpeg,image/png,image/webp"/></label><label>Acrescentar outra imagem<input name="additionalImage" type="file" accept="image/jpeg,image/png,image/webp"/></label><label className="full">Lotes (um por linha: Nome | valor | open/closed/sold_out)<textarea name="lots" rows={4} defaultValue={lots}/></label><label className="full">Aviso de mudança<textarea name="changeNotice" defaultValue={String(meta.changeNotice||"")} placeholder="Preencha quando houver uma alteração importante."/></label><label className="full">Fotos/vídeos pós-evento (uma URL por linha)<textarea name="postEventMedia" defaultValue={Array.isArray(meta.postEventMedia)?meta.postEventMedia.map(String).join("\n"):""}/></label><button className="button primary">Salvar alterações</button><button type="button" className="button" onClick={onClose}>Cancelar</button></form>
+}
+
+function StoreUsersPanel({call}:{call:(u:string,m:string,b?:unknown)=>Promise<boolean>}){
+  const [open,setOpen]=useState(false);
+  async function submit(form:FormData){if(await call("/api/admin/store-users","POST",Object.fromEntries(form.entries())))setOpen(false)}
+  return <div><div className="admin-title row"><div><span className="kicker">Acesso limitado</span><h2>Usuários de vendinhas</h2></div><button className="button primary" onClick={()=>setOpen(!open)}>Cadastrar usuário</button></div><div className="admin-card"><p className="admin-subtitle">Esta tela cria apenas uma conta de responsável por vendinha. Ela recebe somente a permissão para gerenciar a própria loja, sem acesso a usuários, conteúdo geral ou configurações.</p></div>{open&&<form action={submit} className="admin-form one"><label>Nome<input name="name" required/></label><label>E-mail<input name="email" type="email" required/></label><label>Senha inicial<input name="password" type="password" minLength={8} required/></label><div className="form-heading"><span>No primeiro acesso, a pessoa deverá trocar esta senha. Use pelo menos 8 caracteres, uma letra maiúscula, uma minúscula e um número.</span></div><button className="button primary">Criar acesso de vendinha</button></form>}</div>
 }
 
 function CalendarPanel({rows,call}:{rows:Row[];call:(u:string,m:string,b?:unknown)=>Promise<boolean>}){const [open,setOpen]=useState(false);async function submit(form:FormData){const body=Object.fromEntries(form.entries());if(await call("/api/admin/calendar","POST",body))setOpen(false)}return <div><div className="admin-title row"><div><span className="kicker">Agenda compartilhada</span><h2>Calendário</h2></div><button className="button primary" onClick={()=>setOpen(!open)}>Adicionar data</button></div>{open&&<form action={submit} className="admin-form"><label>Título<input name="title" required/></label><label>Tipo<select name="kind"><option value="caecomp">CAECOMP</option><option value="ufg">UFG</option></select></label><label>Início<input name="startsAt" type="datetime-local" required/></label><label>Fim<input name="endsAt" type="datetime-local"/></label><label>Diretoria (opcional)<input name="department"/></label><label>Fonte/link (opcional)<input name="sourceUrl" type="url"/></label><label className="full">Descrição<textarea name="summary"/></label><button className="button primary">Salvar data</button></form>}<div className="admin-table">{rows.map(row=><article key={row.$id}><div><span>{String(row.kind)==="ufg"?"UFG":String(row.department||"CAECOMP")}</span><strong>{String(row.title)}</strong><small>{new Date(String(row.startsAt)).toLocaleString("pt-BR")}</small></div><div><button className="danger" onClick={()=>confirm("Excluir esta data?")&&call(`/api/admin/calendar/${row.$id}`,"DELETE")}>Excluir</button></div></article>)}</div></div>}
 
 function StoresPanel({stores,products,users,admin,call}:{stores:Row[];products:Row[];users:Row[];admin:Admin;call:(u:string,m:string,b?:unknown)=>Promise<boolean>}){
- const [newStore,setNewStore]=useState(false);const [newProduct,setNewProduct]=useState(false);const master=["master","presidency","supreme"].includes(admin.accessLevel)||admin.permissions.includes("stores_manage");const canManageStores=master;const canApprove=false;const canManageOwn=master||admin.permissions.includes("stores");
+ const [newStore,setNewStore]=useState(false);const [newProduct,setNewProduct]=useState(false);const master=["master","presidency","supreme"].includes(admin.accessLevel)||admin.permissions.includes("stores_manage");const canApprove=false;const canManageOwn=master||admin.permissions.includes("stores");
  async function createStore(f:FormData){const body=Object.fromEntries(f.entries()) as Record<string,unknown>;for(const key of ["logo","cover"]){const file=f.get(key);if(file instanceof File&&file.size){try{body[key==="logo"?"logoUrl":"coverUrl"]=await uploadAdminFile(file)}catch(error){alert(error instanceof Error?error.message:"Falha no envio.");return}}delete body[key]}body.active=true;body.approved=true;if(await call("/api/admin/stores","POST",body))setNewStore(false)}
  async function createProduct(f:FormData){if(!confirm("Por segurança, não publique Pix ou instruções de pagamento. Combine qualquer pagamento apenas pelos contatos da vendinha. Continuar?"))return;const body=Object.fromEntries(f.entries()) as Record<string,unknown>;const image=f.get("image");if(image instanceof File&&image.size){try{body.imageUrl=await uploadAdminFile(image)}catch(error){alert(error instanceof Error?error.message:"Falha no envio.");return}}delete body.image;body.module="stores";body.status=String(body.status||"published");body.stockMode=body.stockMode==="limited"?"limited":"unlimited";if(await call("/api/admin/content","POST",body))setNewProduct(false)}
  async function editStore(row:Row){const name=prompt("Nome da vendinha:",String(row.name||""));if(!name)return;const description=prompt("Descrição:",String(row.description||""));if(description===null)return;const whatsapp=prompt("WhatsApp:",String(row.whatsapp||""));if(whatsapp===null)return;await call(`/api/admin/stores/${row.$id}`,"PATCH",{name,description,whatsapp})}
@@ -687,7 +718,7 @@ function Settings({
       <div className="admin-card">
         <h3>Ativar ou desativar áreas públicas</h3>
         <div className="toggle-grid">
-          {Object.entries(sections).map(([key, value]) => (
+          {Object.entries(sections).filter(([key]) => key !== "pretinha").map(([key, value]) => (
             <label key={key}>
               <input
                 type="checkbox"
@@ -784,7 +815,7 @@ function UsersPanel({
           </label>
           <label>
             Senha inicial
-            <input name="password" type="password" minLength={10} required />
+            <input name="password" type="password" minLength={8} required />
           </label>
           <label>
             Nível da conta
@@ -828,7 +859,7 @@ function UsersPanel({
                 {actorLevel === "supreme" && <button
                   onClick={() => {
                     const password = prompt(
-                      "Nova senha (mínimo 10 caracteres, com letras e números):",
+                      "Nova senha (mínimo 8 caracteres, com uma maiúscula, uma minúscula e um número):",
                     );
                     if (password)
                       void call(`/api/admin/users/${r.$id}`, "PATCH", {
@@ -888,7 +919,7 @@ function Profile({
         </label>
         <label>
           Nova senha
-          <input name="newPassword" type="password" minLength={10} />
+          <input name="newPassword" type="password" minLength={8} />
         </label>
         <button className="button primary">Atualizar minha conta</button>
       </form>

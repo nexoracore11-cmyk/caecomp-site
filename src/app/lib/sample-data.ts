@@ -5,7 +5,7 @@ export const sampleData: PublicData = {
     sections: {
       news: true, events: true, ca_products: true, stores: true, documents: true,
       gallery: true, company_opportunities: true, academic_opportunities: true,
-      directors: true, departments:true, calendar:true, instagram: true, about: true, history: false, pretinha: true, photo_initiatives: true, journal: true,
+      directors: true, departments:true, calendar:true, instagram: true, about: true, history: false, pretinha: false, photo_initiatives: true, journal: true,
     },
     heroTitle: "Engenharia que conecta. Comunidade que transforma.",
     heroText: "Informações, ações e serviços do Centro Acadêmico da Engenharia de Computação para quem vive o curso na UFG.",

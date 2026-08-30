@@ -4,13 +4,16 @@ import { NextResponse } from "next/server";
 import { config } from "@/app/lib/config";
 import { currentAdmin, isMaster } from "@/app/lib/auth";
 import { storage } from "@/app/lib/appwrite";
-import { rejectCrossOrigin, validFileSignature } from "@/app/lib/security";
+import { clientFingerprint, consumeRateLimit, rejectCrossOrigin, validFileSignature } from "@/app/lib/security";
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOrigin(request); if (crossOrigin) return crossOrigin;
   const admin = await currentAdmin();
   const uploadPermissions = ["site_manage", "news", "events", "products", "stores", "stores_manage", "documents", "gallery", "opportunities", "academic", "marketing", "presidency", "secretary"];
   if (!admin || (!isMaster(admin) && !admin.permissions.some((permission) => uploadPermissions.includes(permission))))
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+  const burst = consumeRateLimit(`admin-upload:${admin.userId}:${clientFingerprint(request)}`, 20, 10 * 60 * 1000);
+  if (!burst.allowed)
+    return NextResponse.json({ error: "Limite temporário de envios atingido. Aguarde alguns minutos." }, { status: 429, headers: { "Retry-After": String(burst.retryAfter) } });
   const form = await request.formData();
   const file = form.get("file");
   if (!(file instanceof File) || file.size < 1 || file.size > 30_000_000)

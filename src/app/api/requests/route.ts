@@ -3,13 +3,16 @@ import { NextResponse } from "next/server";
 import { Query, tables } from "@/app/lib/appwrite";
 import { config } from "@/app/lib/config";
 import { requestSchema } from "@/app/lib/schemas";
-import { clientFingerprint, rejectCrossOrigin } from "@/app/lib/security";
+import { clientFingerprint, consumeRateLimit, rejectCrossOrigin } from "@/app/lib/security";
 
 type RequestedItem = { module: string; status: string; stockMode?: string; stockQty?: number; capacityMode?: string; capacityQty?: number };
 const compatibleModules: Record<string, string[]> = { product: ["ca_products"], store: ["stores"], opportunity: ["company_opportunities", "academic_opportunities"] };
 
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOrigin(request); if (crossOrigin) return crossOrigin;
+  const burst = consumeRateLimit(`request:${clientFingerprint(request)}`, 12, 10 * 60 * 1000);
+  if (!burst.allowed)
+    return NextResponse.json({ error: "Muitas tentativas em pouco tempo. Aguarde alguns minutos." }, { status: 429, headers: { "Retry-After": String(burst.retryAfter) } });
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Confira os dados informados." }, { status: 400 });
   try {

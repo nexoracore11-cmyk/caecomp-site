@@ -4,12 +4,15 @@ import { NextResponse } from "next/server";
 import { config } from "@/app/lib/config";
 import { Query, storage, tables } from "@/app/lib/appwrite";
 import { pretinhaSubmissionSchema } from "@/app/lib/schemas";
-import { clientFingerprint, rejectCrossOrigin, validFileSignature } from "@/app/lib/security";
+import { clientFingerprint, consumeRateLimit, rejectCrossOrigin, validFileSignature } from "@/app/lib/security";
 
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export async function POST(request: Request) {
   const crossOrigin = rejectCrossOrigin(request); if (crossOrigin) return crossOrigin;
+  const burst = consumeRateLimit(`photo:${clientFingerprint(request)}`, 8, 10 * 60 * 1000);
+  if (!burst.allowed)
+    return NextResponse.json({ error: "Muitas tentativas em pouco tempo. Aguarde alguns minutos." }, { status: 429, headers: { "Retry-After": String(burst.retryAfter) } });
   const form = await request.formData().catch(() => null);
   if (!form) return NextResponse.json({ error: "Envio inválido." }, { status: 400 });
   const photo = form.get("photo");

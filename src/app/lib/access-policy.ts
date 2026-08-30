@@ -25,7 +25,7 @@ export function canManageTarget(actor: PolicyActor, target: PolicyTarget) {
   return isMasterLevel(actor) || actor.permissions.includes("users_manage");
 }
 
-const privilegedPermissions = new Set(["site_manage", "users_manage", "stores_manage", "stores_approve", "pretinha_moderate", "presidency"]);
+const privilegedPermissions = new Set(["site_manage", "users_manage", "stores_manage", "stores_users", "stores_approve", "pretinha_moderate", "presidency"]);
 
 export function canGrantPermissions(actor: PolicyActor, permissions: readonly string[]) {
   if (isMasterLevel(actor)) return true;
