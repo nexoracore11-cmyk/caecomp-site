@@ -16,6 +16,10 @@ test("somente supremo cria presidência", () => {
   assert.equal(canCreateLevel(actor("presidency"), "presidency"), false);
   assert.equal(canCreateLevel(actor("supreme"), "presidency"), true);
 });
+test("presidência pode promover equipe para master, mas gestor de usuários só cria equipe", () => {
+  assert.equal(canCreateLevel(actor("presidency"), "master"), true);
+  assert.equal(canCreateLevel(actor("member", ["users_manage"]), "master"), false);
+});
 test("gestor não-master não repassa permissões privilegiadas", () => {
   const manager = actor("member", ["users_manage", "news"]);
   assert.equal(canGrantPermissions(manager, ["news"]), true);

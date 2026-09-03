@@ -776,6 +776,32 @@ function Settings({
     </div>
   );
 }
+function PermissionSelector({
+  sections,
+  initialPermissions = [],
+}: {
+  sections: Record<string, boolean>;
+  initialPermissions?: string[];
+}) {
+  const available = permissionOptions.filter(([key]) => permissionEnabled(sections, key));
+  const [selected, setSelected] = useState(initialPermissions);
+  const toggle = (permission: string) => setSelected((current) => current.includes(permission) ? current.filter((item) => item !== permission) : [...current, permission]);
+  return <>
+    <div className="permission-actions">
+      <button type="button" className="button compact" onClick={() => setSelected(available.map(([key]) => key))}>Selecionar todas</button>
+      <button type="button" className="button compact" onClick={() => setSelected([])}>Limpar seleção</button>
+    </div>
+    <div className="permission-grid">
+      {available.map(([key, label]) => (
+        <label key={key}>
+          <input type="checkbox" name="permissions" value={key} checked={selected.includes(key)} onChange={() => toggle(key)} />
+          {label}
+        </label>
+      ))}
+    </div>
+  </>;
+}
+
 function UsersPanel({
   rows,
   actorLevel,
@@ -788,7 +814,7 @@ function UsersPanel({
   call: (u: string, m: string, b?: unknown) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
-  const [editingPermissions, setEditingPermissions] = useState<Row | null>(null);
+  const [editingUser, setEditingUser] = useState<Row | null>(null);
   const levelLabels = { member: "Equipe", master: "Master", presidency: "Presidência", supreme: "Master Supremo" } as const;
   const creatableLevels = actorLevel === "supreme" ? ["member", "master", "presidency"] : actorLevel === "presidency" ? ["member", "master"] : ["member"];
   function mayManage(row: Row) {
@@ -838,27 +864,19 @@ function UsersPanel({
               {creatableLevels.map((level) => <option key={level} value={level}>{levelLabels[level as keyof typeof levelLabels]}</option>)}
             </select>
           </label>
-          <fieldset>
-            <legend>Permissões</legend>
-            <div className="permission-grid">
-              {permissionOptions.filter(([key]) => permissionEnabled(sections, key)).map(([key, label]) => (
-                <label key={key}>
-                  <input type="checkbox" name="permissions" value={key} />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          <fieldset><legend>Permissões</legend><PermissionSelector sections={sections} /></fieldset>
           <button className="button primary">Criar conta</button>
         </form>
       )}
-      {editingPermissions && <form key={editingPermissions.$id} action={async (form) => {
+      {editingUser && <form key={editingUser.$id} action={async (form) => {
         const permissions = form.getAll("permissions");
-        if (await call(`/api/admin/users/${editingPermissions.$id}`, "PATCH", { permissions })) setEditingPermissions(null);
+        const accessLevel = String(form.get("accessLevel") ?? "member");
+        if (await call(`/api/admin/users/${editingUser.$id}`, "PATCH", { permissions, accessLevel })) setEditingUser(null);
       }} className="admin-form">
-        <div className="form-heading"><strong>Permissões de {String(editingPermissions.name)}</strong><span>Marque “Aprovar produtos de vendinhas” somente para quem poderá liberar produtos no site.</span></div>
-        <fieldset><legend>Permissões</legend><div className="permission-grid">{permissionOptions.filter(([key]) => permissionEnabled(sections, key)).map(([key, label]) => <label key={key}><input type="checkbox" name="permissions" value={key} defaultChecked={Array.isArray(editingPermissions.permissions) && editingPermissions.permissions.includes(key)} />{label}</label>)}</div></fieldset>
-        <button className="button primary">Salvar permissões</button><button type="button" className="button" onClick={() => setEditingPermissions(null)}>Cancelar</button>
+        <div className="form-heading"><strong>Acesso de {String(editingUser.name)}</strong><span>Defina o nível e as permissões. A hierarquia protege Masters, Presidência e Master Supremo.</span></div>
+        <label>Nível da conta<select name="accessLevel" defaultValue={editingUser.isOwner ? "supreme" : String(editingUser.accessLevel ?? "member")}>{creatableLevels.map((level) => <option key={level} value={level}>{levelLabels[level as keyof typeof levelLabels]}</option>)}</select></label>
+        <fieldset><legend>Permissões</legend><PermissionSelector sections={sections} initialPermissions={Array.isArray(editingUser.permissions) ? editingUser.permissions.map(String) : []} /></fieldset>
+        <button className="button primary">Salvar acesso</button><button type="button" className="button" onClick={() => setEditingUser(null)}>Cancelar</button>
       </form>}
       <div className="admin-table">
         {rows.map((r) => (
@@ -870,7 +888,7 @@ function UsersPanel({
             </div>
             {mayManage(r) && (
               <div>
-                <button onClick={() => setEditingPermissions(r)}>Editar permissões</button>
+                <button onClick={() => setEditingUser(r)}>Editar acesso</button>
                 {actorLevel === "supreme" && <button
                   onClick={() => {
                     const password = prompt(
